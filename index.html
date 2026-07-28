@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ISC Tournament Manager — Ivoire Chess</title>
+  <style>
+    :root {
+      --ink: #1c1c1c;
+      --muted: #6b6b6b;
+      --accent: #0a7d3b;
+      --paper: #fafafa;
+      --line: #e2e2e2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    header h1 { font-size: 1.1rem; margin: 0; flex: 1; }
+    #auth-status { color: var(--muted); font-size: 0.85rem; }
+    main { flex: 1; max-width: 60rem; width: 100%; margin: 0 auto; padding: 1.5rem 1.25rem; }
+    footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+    }
+    footer a { color: var(--muted); }
+    button {
+      font: inherit;
+      padding: 0.4rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    /* Admin-only elements stay hidden until the profiles role says otherwise. */
+    .admin-only { display: none; }
+    body.is-admin .admin-only { display: block; }
+    #login-view {
+      max-width: 22rem;
+      margin: 1.5rem auto;
+      padding: 1.25rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+    #login-view h2 { margin-top: 0; font-size: 1rem; }
+    #login-view label { display: block; margin: 0.6rem 0 0.2rem; font-size: 0.85rem; }
+    #login-view input { width: 100%; padding: 0.45rem; border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+    #login-view .actions { display: flex; gap: 0.5rem; margin-top: 0.9rem; }
+    #login-error { color: #b3261e; font-size: 0.85rem; min-height: 1.2em; margin: 0.5rem 0 0; }
+    .notice {
+      padding: 0.75rem 1rem;
+      border: 1px dashed var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+    }
+    .admin-note { border-color: var(--accent); color: var(--accent); margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ISC Tournament Manager</h1>
+    <span id="auth-status"></span>
+    <button id="logout-button" hidden>Se déconnecter</button>
+  </header>
+
+  <main>
+    <p class="notice">Annuaire public des tournois — à venir.</p>
+
+    <!-- Organizer mode: entry tools arrive in Phase 4. Visibility is
+         cosmetic; RLS decides what actually gets written. -->
+    <div class="admin-only">
+      <p class="notice admin-note">
+        Mode organisateur actif. La création de tournois et la saisie des
+        résultats arriveront dans une prochaine version.
+      </p>
+    </div>
+
+    <section id="login-view" hidden>
+      <h2>Connexion organisateur</h2>
+      <p id="login-error"></p>
+      <form id="login-form">
+        <label for="login-email">Adresse e-mail</label>
+        <input id="login-email" type="email" autocomplete="username" required>
+        <label for="login-password">Mot de passe</label>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+        <div class="actions">
+          <button type="submit" class="primary">Se connecter</button>
+          <button type="button" id="login-cancel">Annuler</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <span>Ivoire Chess — Côte d'Ivoire</span>
+    <a href="#" id="login-link">Connexion organisateur</a>
+  </footer>
+
+  <!-- Optional static-hosting configuration (uncommitted; see env.example.js).
+       Ignored when absent: the site then stays in public read-only mode. -->
+  <script src="./env.js" onerror="void 0"></script>
+  <script type="module">
+    import { initAuth } from "./src/ui/auth.js";
+    initAuth();
+  </script>
+</body>
+</html>

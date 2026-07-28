@@ -1,7 +1,8 @@
 # Local environment — real keys live here, never in the repository.
-# Only .env.example (public values by design) is committed.
+# Only .env.example and env.example.js (public values by design) are committed.
 .env
 .env.*
 !.env.example
+env.js
 
 node_modules/
