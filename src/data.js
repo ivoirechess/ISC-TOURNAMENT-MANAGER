@@ -91,3 +91,112 @@ export async function getCurrentRole() {
   if (error || !data) return null;
   return data.role;
 }
+
+// ---------------------------------------------------------------------------
+// Players directory
+// ---------------------------------------------------------------------------
+
+/** All players, sorted by name. Publicly readable. */
+export async function listPlayers() {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("players")
+    .select("id, name, fide_id, club, rating_std, rating_rapid, rating_blitz")
+    .order("name");
+  if (error) {
+    throw new Error("Impossible de charger l'annuaire des joueurs.");
+  }
+  return data ?? [];
+}
+
+/**
+ * Adds a player to the shared directory. Only name is required; RLS
+ * restricts this to admins.
+ * @param {{name: string, club?: string, fide_id?: number, rating_std?: number}} fields
+ */
+export async function createPlayer(fields) {
+  const name = (fields.name ?? "").trim();
+  if (name === "") {
+    throw new Error("Le nom du joueur est obligatoire.");
+  }
+  const row = { name };
+  if (fields.club) row.club = fields.club.trim();
+  if (Number.isInteger(fields.fide_id)) row.fide_id = fields.fide_id;
+  if (Number.isInteger(fields.rating_std)) row.rating_std = fields.rating_std;
+
+  const client = await getClient();
+  const { data, error } = await client.from("players").insert(row).select().single();
+  if (error) {
+    throw new Error("L'ajout du joueur a echoue (droits insuffisants ou ID FIDE deja utilise).");
+  }
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Tournaments
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a draft tournament owned by the signed-in admin and registers
+ * its players. RLS enforces the role and ownership rules server-side.
+ * @param {{name: string, format: string, roundsPlanned: number, playerIds: string[]}} draft
+ * @returns the created tournament row
+ */
+export async function createTournament({ name, format, roundsPlanned, playerIds }) {
+  const client = await getClient();
+  const { data: userData } = await client.auth.getUser();
+  const user = userData?.user;
+  if (!user) {
+    throw new Error("Connectez-vous pour creer un tournoi.");
+  }
+
+  const { data: tournament, error } = await client
+    .from("tournaments")
+    .insert({
+      name: name.trim(),
+      format,
+      rounds_planned: roundsPlanned,
+      status: "draft",
+      created_by: user.id,
+    })
+    .select()
+    .single();
+  if (error) {
+    throw new Error("La creation du tournoi a echoue (droits insuffisants ?).");
+  }
+
+  const rows = playerIds.map((playerId) => ({
+    tournament_id: tournament.id,
+    player_id: playerId,
+  }));
+  const { error: tpError } = await client.from("tournament_players").insert(rows);
+  if (tpError) {
+    // Leave no half-created tournament behind; RLS lets the owner delete it.
+    const { error: cleanupError } = await client
+      .from("tournaments")
+      .delete()
+      .eq("id", tournament.id);
+    throw new Error(
+      cleanupError
+        ? "L'inscription des joueurs a echoue et le brouillon n'a pas pu etre supprime : " +
+          "retrouvez-le sur la page d'accueil pour le supprimer ou reessayer."
+        : "L'inscription des joueurs a echoue, le tournoi n'a pas ete cree."
+    );
+  }
+
+  return tournament;
+}
+
+/** One tournament with its registered players, or null when not found. */
+export async function getTournament(id) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .select("id, name, format, rounds_planned, status, created_at, tournament_players(player_id, withdrawn, players(id, name, club, rating_std))")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Impossible de charger ce tournoi.");
+  }
+  return data ?? null;
+}

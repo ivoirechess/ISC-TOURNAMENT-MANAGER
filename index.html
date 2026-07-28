@@ -74,6 +74,42 @@
       color: var(--muted);
     }
     .admin-note { border-color: var(--accent); color: var(--accent); margin-top: 1rem; }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+    .error { color: #b3261e; font-size: 0.9rem; min-height: 1.2em; }
+    .warning { color: #8a6100; font-size: 0.9rem; min-height: 1.2em; }
+    .button-link {
+      display: inline-block;
+      padding: 0.4rem 0.9rem;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 4px;
+      text-decoration: none;
+    }
+    #tournament-form { max-width: 34rem; }
+    #tournament-form input:not([type="radio"]):not([type="checkbox"]) {
+      width: 100%;
+      padding: 0.45rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      font: inherit;
+      margin: 0.2rem 0 0.7rem;
+    }
+    #tournament-form fieldset {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin: 0 0 1rem;
+    }
+    .format-choice { display: block; margin: 0.25rem 0; }
+    .format-choice.disabled { color: var(--muted); }
+    #player-list {
+      max-height: 14rem;
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0.4rem 0.6rem;
+      background: #fff;
+    }
+    .player-row { display: block; padding: 0.15rem 0; }
   </style>
 </head>
 <body>
@@ -84,16 +120,65 @@
   </header>
 
   <main>
-    <p class="notice">Annuaire public des tournois — à venir.</p>
+    <section id="view-home">
+      <p class="notice">Annuaire public des tournois — à venir.</p>
 
-    <!-- Organizer mode: entry tools arrive in Phase 4. Visibility is
-         cosmetic; RLS decides what actually gets written. -->
-    <div class="admin-only">
-      <p class="notice admin-note">
-        Mode organisateur actif. La création de tournois et la saisie des
-        résultats arriveront dans une prochaine version.
-      </p>
-    </div>
+      <!-- Organizer mode. Visibility is cosmetic; RLS decides what
+           actually gets written. -->
+      <div class="admin-only">
+        <p class="notice admin-note">Mode organisateur actif.</p>
+        <p><a class="button-link" href="#/nouveau-tournoi">Créer un tournoi</a></p>
+      </div>
+    </section>
+
+    <section id="view-new-tournament" hidden>
+      <h2>Créer un tournoi</h2>
+      <form id="tournament-form">
+        <label for="t-name">Nom du tournoi *</label>
+        <input id="t-name" required>
+
+        <fieldset>
+          <legend>Format</legend>
+          <div id="t-formats"></div>
+        </fieldset>
+
+        <label for="t-rounds">Nombre de rondes prévues *</label>
+        <input id="t-rounds" type="number" min="1" step="1" value="5">
+
+        <fieldset>
+          <legend>Joueurs participants</legend>
+          <p id="players-error" class="error"></p>
+          <input id="player-search" type="search" placeholder="Rechercher dans l'annuaire…">
+          <div id="player-list"></div>
+          <p id="player-count" class="muted"></p>
+          <details>
+            <summary>Ajouter un joueur à l'annuaire</summary>
+            <p class="muted">Seul le nom est obligatoire.</p>
+            <label for="np-name">Nom *</label>
+            <input id="np-name">
+            <label for="np-club">Club</label>
+            <input id="np-club">
+            <label for="np-elo">Elo standard</label>
+            <input id="np-elo" type="number" min="0" step="1">
+            <p id="np-error" class="error"></p>
+            <p><button type="button" id="np-add">Ajouter à l'annuaire</button></p>
+          </details>
+        </fieldset>
+
+        <p id="t-warnings" class="warning"></p>
+        <p id="t-errors" class="error"></p>
+        <button id="t-submit" type="submit" class="primary">Créer le tournoi</button>
+      </form>
+    </section>
+
+    <section id="view-tournament" hidden>
+      <h2 id="tournament-title"></h2>
+      <p id="tournament-meta" class="muted"></p>
+      <h3>Joueurs inscrits</h3>
+      <ul id="tournament-players"></ul>
+      <p class="notice">Vue détaillée du tournoi — rondes et classement à venir.</p>
+      <p><a href="#/">← Retour à l'accueil</a></p>
+    </section>
 
     <section id="login-view" hidden>
       <h2>Connexion organisateur</h2>
@@ -116,12 +201,10 @@
     <a href="#" id="login-link">Connexion organisateur</a>
   </footer>
 
-  <!-- Optional static-hosting configuration (uncommitted; see env.example.js).
-       Ignored when absent: the site then stays in public read-only mode. -->
+  <!-- Runtime configuration. env.js IS committed and must only ever hold
+       the public URL and anon key — never any secret. Ignored when absent:
+       the site then stays in public read-only mode. -->
   <script src="./env.js" onerror="void 0"></script>
-  <script type="module">
-    import { initAuth } from "./src/ui/auth.js";
-    initAuth();
-  </script>
+  <script type="module" src="./src/ui/app.js"></script>
 </body>
 </html>
