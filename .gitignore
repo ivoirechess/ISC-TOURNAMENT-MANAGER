@@ -1,8 +1,8 @@
-# Local environment — real keys live here, never in the repository.
-# Only .env.example and env.example.js (public values by design) are committed.
+# Local environment. env.js is committed: it only carries the Supabase URL
+# and the anon (publishable) key, public by design. Any file that could
+# hold real secrets stays out of the repository.
 .env
 .env.*
 !.env.example
-env.js
 
 node_modules/
