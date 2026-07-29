@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   buchholz,
   buchholzCut1,
@@ -535,6 +536,28 @@ describe("validateTiebreakSelection", () => {
     assert.equal(validateTiebreakSelection(["buchholz", "buchholz"]).ok, false);
     assert.equal(validateTiebreakSelection(["buchholz", "inconnu"]).ok, false);
     assert.equal(validateTiebreakSelection("buchholz").ok, false);
+  });
+
+  test("le domaine JS et la contrainte SQL ne divergent pas", () => {
+    // La contrainte CHECK sur tournaments.tiebreaks rejetterait cote serveur
+    // une cle ajoutee ici sans l'etre la-bas. Ce test lit la migration pour
+    // que la derive se voie tout de suite, pas en production.
+    const migration = readFileSync(
+      new URL("../supabase/migrations/20260729120000_tournament_tiebreaks.sql", import.meta.url),
+      "utf8"
+    );
+    // La recherche de fin part de l'index de debut : un `]::text[]` apparait
+    // deja plus haut, dans la valeur DEFAULT.
+    const start = migration.indexOf("tiebreaks <@ array[");
+    assert.notEqual(start, -1, "domaine introuvable dans la migration");
+    const domain = migration.slice(start, migration.indexOf("]::text[]", start));
+    for (const key of TIEBREAK_KEYS) {
+      assert.ok(domain.includes(`'${key}'`), `${key} absent du domaine SQL`);
+    }
+    const sqlKeys = [...domain.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    assert.deepEqual(sqlKeys.sort(), [...TIEBREAK_KEYS].sort());
+    // Les bornes 2..6 doivent elles aussi correspondre.
+    assert.match(migration, /cardinality\(tiebreaks\) between 2 and 6/);
   });
 
   test("alphabetical n'est pas selectionnable", () => {

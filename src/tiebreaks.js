@@ -11,6 +11,10 @@
 // Definitions follow the FIDE tie-break regulations. Where this project
 // deliberately stays simpler than FIDE, it is called out in a comment.
 
+// Kept in step with the CHECK constraint on tournaments.tiebreaks
+// (supabase/migrations/20260729120000_tournament_tiebreaks.sql): adding a
+// key here without adding it there gets the row rejected server-side. A
+// test reads the migration to keep the two from drifting apart.
 /** Tie-breaks an organizer may pick, in the order they are offered. */
 export const TIEBREAK_KEYS = [
   "buchholz",

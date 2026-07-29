@@ -18,6 +18,16 @@ function el(id) {
   return document.getElementById(id);
 }
 
+// A malformed hash (#/tournoi/%) makes decodeURIComponent throw; the raw
+// segment is a good enough fallback, and the lookup simply finds nothing.
+function safeDecode(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 const VIEWS = ["view-home", "view-new-tournament", "view-tournament", "view-standings"];
 
 function showView(id) {
@@ -88,13 +98,13 @@ async function route() {
   const standingsMatch = hash.match(/^#\/tournoi\/(.+)\/classement$/);
   if (standingsMatch) {
     showView("view-standings");
-    await openStandings(decodeURIComponent(standingsMatch[1]));
+    await openStandings(safeDecode(standingsMatch[1]));
     return;
   }
 
   const tournamentMatch = hash.match(/^#\/tournoi\/(.+)$/);
   if (tournamentMatch) {
-    await showTournament(decodeURIComponent(tournamentMatch[1]));
+    await showTournament(safeDecode(tournamentMatch[1]));
     return;
   }
 

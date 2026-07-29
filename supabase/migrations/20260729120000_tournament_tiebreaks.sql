@@ -11,13 +11,20 @@
 -- Rejects a selection listing the same tie-break twice. Written as an
 -- IMMUTABLE function because a CHECK constraint cannot hold a subquery,
 -- and this rule must live server-side rather than in the browser.
-create or replace function public.array_has_no_duplicates(values text[])
+--
+-- The parameter is named `items`, not `values`: VALUES is a reserved word
+-- in PostgreSQL and cannot name a parameter. No SECURITY DEFINER — the
+-- function touches no table and has no reason to raise its privileges.
+-- The constraint below depends on this function's OID, so a later
+-- same-named function cannot hijack it; replacing this one would.
+create or replace function public.array_has_no_duplicates(items text[])
 returns boolean
 language sql
 immutable
-set search_path = public
+strict
+set search_path = ''
 as $$
-  select cardinality(values) = (select count(distinct value) from unnest(values) as value);
+  select cardinality(items) = (select count(distinct item) from unnest(items) as item);
 $$;
 
 alter table public.tournaments
