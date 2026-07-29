@@ -9,6 +9,8 @@ import {
   renameTournament,
   updateRoundsPlanned,
   updatePairingResult,
+  clearPairingResult,
+  softDeleteTournament,
 } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import {
@@ -19,6 +21,7 @@ import {
   validateRoundsPlannedEdit,
   validateResultEdit,
 } from "../tournament-edit.js";
+import { canClearResult, deleteConfirmationMessage } from "../tournament-delete.js";
 import { STATUS_LABELS } from "../tournament-list.js";
 
 function el(id) {
@@ -89,6 +92,18 @@ function renderResults() {
         }
         select.addEventListener("change", () => onResultChange(pairing, select));
         row.append(select);
+
+        // Emptying a result is a different gesture from correcting one, and
+        // only makes sense while the tournament runs.
+        const clearable = canClearResult(current.tournament, pairing);
+        if (clearable.ok) {
+          const clear = document.createElement("button");
+          clear.type = "button";
+          clear.textContent = "Effacer";
+          clear.title = "Remettre ce résultat à vide";
+          clear.addEventListener("click", () => onClearResult(pairing));
+          row.append(clear);
+        }
       }
 
       box.append(row);
@@ -122,6 +137,37 @@ async function onResultChange(pairing, select) {
     setFeedback("edit-results-feedback", err.message, true);
   } finally {
     select.disabled = false;
+  }
+}
+
+async function onClearResult(pairing) {
+  const check = canClearResult(current.tournament, pairing);
+  if (!check.ok) {
+    setFeedback("edit-results-feedback", check.reason, true);
+    return;
+  }
+  try {
+    await clearPairingResult(pairing.id);
+    pairing.result = null;
+    setFeedback("edit-results-feedback", "Résultat effacé.", false);
+    renderResults();
+  } catch (err) {
+    setFeedback("edit-results-feedback", err.message, true);
+  }
+}
+
+async function onDeleteTournament() {
+  // The dialogue names the tournament: an irreversible-looking action must
+  // not hinge on a generic "are you sure?".
+  if (!window.confirm(deleteConfirmationMessage(current.tournament))) return;
+  const button = el("edit-delete");
+  button.disabled = true;
+  try {
+    await softDeleteTournament(current.tournament.id);
+    window.location.hash = "#/";
+  } catch (err) {
+    setFeedback("edit-delete-feedback", err.message, true);
+    button.disabled = false;
   }
 }
 
@@ -173,6 +219,7 @@ async function onSaveRounds(event) {
 export function initTournamentEdit() {
   el("edit-name-form").addEventListener("submit", onRename);
   el("edit-rounds-form").addEventListener("submit", onSaveRounds);
+  el("edit-delete").addEventListener("click", onDeleteTournament);
 }
 
 /**
@@ -180,7 +227,12 @@ export function initTournamentEdit() {
  * tournament, so the router can send them back to the public view.
  */
 export async function openTournamentEdit(id) {
-  for (const node of ["edit-name-feedback", "edit-rounds-feedback", "edit-results-feedback"]) {
+  for (const node of [
+    "edit-name-feedback",
+    "edit-rounds-feedback",
+    "edit-results-feedback",
+    "edit-delete-feedback",
+  ]) {
     el(node).textContent = "";
   }
   el("edit-title").textContent = "Chargement…";
@@ -215,6 +267,7 @@ export async function openTournamentEdit(id) {
   el("edit-title").textContent = `Modifier — ${tournament.name}`;
   el("edit-meta").textContent = `Statut : ${STATUS_LABELS[tournament.status] ?? tournament.status}`;
   el("edit-name").value = tournament.name;
+  el("edit-delete").disabled = false;
   renderRoundsSection();
   renderResults();
   return true;

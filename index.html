@@ -186,6 +186,16 @@
       border: 1px solid var(--line);
       border-radius: 4px;
     }
+    button.danger { border-color: #b3261e; color: #b3261e; }
+    button.danger:hover { background: #b3261e; color: #fff; }
+    .trash-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .trash-actions { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
   </style>
 </head>
 <body>
@@ -306,7 +316,28 @@
         <p id="edit-results-feedback"></p>
       </fieldset>
 
+      <fieldset>
+        <legend>Supprimer le tournoi</legend>
+        <p class="muted">
+          Le tournoi disparaît de l'annuaire public et de votre liste. Seul un
+          super-admin peut le restaurer depuis la corbeille.
+        </p>
+        <p><button type="button" id="edit-delete" class="danger">Supprimer ce tournoi</button></p>
+        <p id="edit-delete-feedback"></p>
+      </fieldset>
+
       <p><a id="edit-back" href="#/">← Retour au tournoi</a></p>
+    </section>
+
+    <section id="view-trash" hidden>
+      <h2>Corbeille</h2>
+      <p class="muted">
+        Tournois supprimés, visibles des super-admins seuls. Restaurer les
+        remet en ligne ; supprimer définitivement est irréversible.
+      </p>
+      <p id="trash-feedback"></p>
+      <div id="trash-list"></div>
+      <p><a href="#/">← Retour à l'accueil</a></p>
     </section>
 
     <section id="view-standings" hidden>
