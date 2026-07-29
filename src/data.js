@@ -108,7 +108,7 @@ export async function listPlayers() {
     .select("id, name, fide_id, club, rating_std, rating_rapid, rating_blitz")
     .order("name");
   if (error) {
-    throw new Error("Impossible de charger l'annuaire des joueurs.");
+    throw new Error(describeError(error, "Impossible de charger l'annuaire des joueurs."));
   }
   return data ?? [];
 }
@@ -131,7 +131,7 @@ export async function createPlayer(fields) {
   const client = await getClient();
   const { data, error } = await client.from("players").insert(row).select().single();
   if (error) {
-    throw new Error("L'ajout du joueur a echoue (droits insuffisants ou ID FIDE deja utilise).");
+    throw new Error(describeError(error, "L'ajout du joueur a echoue."));
   }
   return data;
 }
@@ -184,7 +184,7 @@ export async function createTournament({ name, format, roundsPlanned, playerIds,
     .select()
     .single();
   if (error) {
-    throw new Error("La creation du tournoi a echoue (droits insuffisants ?).");
+    throw new Error(describeError(error, "La creation du tournoi a echoue."));
   }
 
   // Rolls the whole creation back; rounds and pairings go with the
@@ -262,7 +262,7 @@ export async function listTournaments() {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) {
-    throw new Error("Impossible de charger la liste des tournois.");
+    throw new Error(describeError(error, "Impossible de charger la liste des tournois."));
   }
   return data ?? [];
 }
@@ -277,7 +277,7 @@ export async function getTournament(id) {
     .is("deleted_at", null)
     .maybeSingle();
   if (error) {
-    throw new Error("Impossible de charger ce tournoi.");
+    throw new Error(describeError(error, "Impossible de charger ce tournoi."));
   }
   return data ?? null;
 }
@@ -300,13 +300,44 @@ function assertUpdated(rows, forbiddenMessage) {
 }
 
 // Our own triggers raise SQLSTATE ISC01 with a French message meant to be
-// read. Anything else is a raw PostgreSQL error naming relations and
-// constraints, so it gets the generic wording every other call here uses.
+// read; those are shown as they are.
 const APP_ERROR_CODE = "ISC01";
 
-function editErrorMessage(error, fallback) {
-  return error?.code === APP_ERROR_CODE && error.message ? error.message : fallback;
+// An RLS refusal is deliberately mute — PostgreSQL will not say which
+// predicate failed, since that would leak the rule. Naming the usual
+// suspects is the most a message can honestly do.
+const RLS_HINTS = {
+  "42501":
+    "Refus RLS : le serveur a rejeté l'écriture. Causes habituelles — votre " +
+    "compte n'a pas de ligne dans `profiles` (donc aucun rôle), ou le tournoi " +
+    "visé ne vous appartient pas.",
+  "23505": "Une valeur unique est déjà utilisée.",
+  "23514": "Une contrainte de validité de la base a refusé la valeur.",
+  "23502": "Un champ obligatoire est absent.",
+};
+
+/**
+ * Message shown to the user for a PostgREST error.
+ *
+ * The real SQLSTATE and the server's own wording are always appended: a
+ * generic "droits insuffisants ?" tells an organizer nothing and leaves
+ * nothing to report. Our own ISC01 refusals are already written to be read,
+ * so they pass through untouched.
+ */
+export function describeError(error, fallback) {
+  if (!error) return fallback;
+  if (error.code === APP_ERROR_CODE && error.message) return error.message;
+
+  const parts = [fallback];
+  const hint = RLS_HINTS[error.code];
+  if (hint) parts.push(hint);
+  const detail = [error.code, error.message].filter(Boolean).join(" - ");
+  if (detail) parts.push(`[${detail}]`);
+  return parts.join(" ");
 }
+
+// Kept for the call sites that read better with the short name.
+const editErrorMessage = describeError;
 
 /** Renames a tournament. Allowed at any stage. */
 export async function renameTournament(id, name) {
@@ -320,7 +351,7 @@ export async function renameTournament(id, name) {
     .eq("id", id)
     .select("id, name");
   if (error) {
-    throw new Error("Le renommage a echoue.");
+    throw new Error(describeError(error, "Le renommage a echoue."));
   }
   return assertUpdated(data, "Vous n'avez pas le droit de renommer ce tournoi.");
 }
@@ -398,7 +429,7 @@ export async function listDeletedTournaments() {
     .not("deleted_at", "is", null)
     .order("deleted_at", { ascending: false });
   if (error) {
-    throw new Error("Impossible de charger la corbeille.");
+    throw new Error(describeError(error, "Impossible de charger la corbeille."));
   }
   return data ?? [];
 }
@@ -467,7 +498,7 @@ export async function getTournamentResults(id) {
     .is("deleted_at", null)
     .maybeSingle();
   if (error) {
-    throw new Error("Impossible de charger le classement de ce tournoi.");
+    throw new Error(describeError(error, "Impossible de charger le classement de ce tournoi."));
   }
   if (!data) return null;
 

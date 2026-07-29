@@ -64,6 +64,44 @@ end;
 $$;
 
 -- --------------------------------------------------------------------------
+-- Creating a tournament still works — the path a regression report pointed at
+-- --------------------------------------------------------------------------
+set role authenticated;
+
+set test.uid = '33333333-3333-3333-3333-333333333333';
+insert into public.tournaments(name, format, rounds_planned, status, created_by, tiebreaks)
+  values ('Cree par super_admin', 'swiss', 3, 'draft',
+          '33333333-3333-3333-3333-333333333333', array['buchholz', 'wins'])
+  returning id;
+select pg_temp.check_equal('un super_admin cree un tournoi',
+  (select count(*) from public.tournaments where name = 'Cree par super_admin'), 1);
+
+set test.uid = '11111111-1111-1111-1111-111111111111';
+insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
+  values ('cccccccc-0000-0000-0000-0000000000aa', 'Cree par admin', 'swiss', 3, 'draft',
+          '11111111-1111-1111-1111-111111111111', array['buchholz', 'wins'])
+  returning id;
+select pg_temp.check_equal('un admin cree son tournoi',
+  (select count(*) from public.tournaments where name = 'Cree par admin'), 1);
+
+insert into public.tournament_players(tournament_id, player_id)
+  values ('cccccccc-0000-0000-0000-0000000000aa', 'aaaaaaaa-0000-0000-0000-000000000002')
+  returning tournament_id;
+select pg_temp.check_equal('et y inscrit un joueur',
+  (select count(*) from public.tournament_players
+    where tournament_id = 'cccccccc-0000-0000-0000-0000000000aa'), 1);
+
+-- A tournament must not be creatable straight into the trash: unreachable
+-- for its own author, and the refusal names nothing useful.
+select pg_temp.check_refused(
+  'un tournoi ne peut pas naitre supprime',
+  $$insert into public.tournaments(name, format, rounds_planned, status, created_by, tiebreaks, deleted_at)
+    values ('Ne doit pas naitre supprime', 'swiss', 3, 'draft',
+            '11111111-1111-1111-1111-111111111111', array['buchholz', 'wins'], now())$$);
+
+reset role; reset test.uid;
+
+-- --------------------------------------------------------------------------
 -- An admin cannot destroy a tournament, only mark it
 -- --------------------------------------------------------------------------
 set role authenticated;
