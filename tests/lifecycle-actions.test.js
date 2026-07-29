@@ -201,7 +201,7 @@ describe("quels boutons, selon l'etat", () => {
 
   test("a venir : depublier, demarrer, annuler", async () => {
     await openLifecycleActions(upcoming(), null, { backend: recorder(), dialogs: dialogs() });
-    assert.deepEqual(shownActions(), ["unpublish", "start", "cancel"]);
+    assert.deepEqual(shownActions(), ["unpublish", "start", "cancel", "delete"]);
     assert.equal(buttonFor("start").textContent, "Démarrer le tournoi");
     assert.equal(buttonFor("unpublish").textContent, "Dépublier");
   });
@@ -226,12 +226,12 @@ describe("quels boutons, selon l'etat", () => {
     assert.deepEqual(shownActions(), []);
   });
 
-  test("annule : plus aucun bouton", async () => {
+  test("annule : suppression douce disponible", async () => {
     await openLifecycleActions(tournament({ cancelled_at: "2026-07-02T08:00:00Z" }), null, {
       backend: recorder(),
       dialogs: dialogs(),
     });
-    assert.deepEqual(shownActions(), []);
+    assert.deepEqual(shownActions(), ["delete"]);
   });
 
   test("l'etat courant est ecrit a cote des boutons", async () => {
@@ -338,7 +338,7 @@ describe("double soumission", () => {
     const running = buttonFor("start").click();
     assert.deepEqual(
       buttons().map((node) => node.disabled),
-      [true, true, true],
+      [true, true, true, true],
       "tous les boutons doivent tomber, pas seulement celui clique"
     );
     // Un second clic pendant l'appel n'ajoute rien.
@@ -357,7 +357,7 @@ describe("double soumission", () => {
 
     assert.match(feedback().textContent, /au moins deux joueurs/);
     assert.equal(feedback().className, "error");
-    assert.deepEqual(buttons().map((node) => node.disabled), [false, false, false]);
+    assert.deepEqual(buttons().map((node) => node.disabled), [false, false, false, false]);
     assert.deepEqual(calls, [], "un echec ne rafraichit pas la vue");
   });
 });

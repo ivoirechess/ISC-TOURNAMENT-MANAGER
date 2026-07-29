@@ -112,6 +112,13 @@ export function viewActions(tournament) {
   );
 }
 
+export function deletionAllowed(tournament, role) {
+  if (!tournament || tournament.deleted_at) return false;
+  if (role === "super_admin") return true;
+  const state = lifecycleState(tournament);
+  return role === "admin" && ["draft", "upcoming", "cancelled"].includes(state);
+}
+
 /**
  * Whether this visitor may be shown the life-cycle buttons: the owning
  * admin, or a super_admin on any tournament.
