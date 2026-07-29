@@ -56,6 +56,13 @@ export async function signOut() {
   }
 }
 
+/** Sends Supabase's password recovery email without revealing account state. */
+export async function requestPasswordReset(email, redirectTo) {
+  const client = await getClient();
+  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) throw new Error("Impossible d'envoyer le lien. Réessayez plus tard.");
+}
+
 /** Current session, or null when browsing anonymously. */
 export async function getSession() {
   const client = await getClient();
