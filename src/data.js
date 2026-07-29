@@ -8,6 +8,7 @@
 import { getSupabaseEnv } from "./config.js";
 import { generateSchedule } from "./roundrobin.js";
 import { isRoundRobin } from "./tournament-validation.js";
+import { validateTiebreakSelection } from "./tiebreaks.js";
 
 // Version pinned exactly: an unpinned tag would let the CDN swap the code
 // that handles organizer passwords without any visible change here.
@@ -141,15 +142,22 @@ export async function createPlayer(fields) {
 /**
  * Creates a draft tournament owned by the signed-in admin and registers
  * its players. RLS enforces the role and ownership rules server-side.
- * @param {{name: string, format: string, roundsPlanned: number, playerIds: string[]}} draft
+ * @param {{name: string, format: string, roundsPlanned: number, playerIds: string[], tiebreaks: string[]}} draft
  * @returns the created tournament row
  */
-export async function createTournament({ name, format, roundsPlanned, playerIds }) {
+export async function createTournament({ name, format, roundsPlanned, playerIds, tiebreaks }) {
   const client = await getClient();
   const { data: userData } = await client.auth.getUser();
   const user = userData?.user;
   if (!user) {
     throw new Error("Connectez-vous pour creer un tournoi.");
+  }
+
+  // Checked before writing anything: the same rule is enforced by a CHECK
+  // constraint on the column, this only turns it into a readable message.
+  const tiebreakCheck = validateTiebreakSelection(tiebreaks);
+  if (!tiebreakCheck.ok) {
+    throw new Error(tiebreakCheck.errors.join(" "));
   }
 
   // Built before the first write on purpose: generateSchedule rejects an
@@ -170,6 +178,7 @@ export async function createTournament({ name, format, roundsPlanned, playerIds 
       rounds_planned: schedule ? schedule.length : roundsPlanned,
       status: "draft",
       created_by: user.id,
+      tiebreaks,
     })
     .select()
     .single();
@@ -261,11 +270,56 @@ export async function getTournament(id) {
   const client = await getClient();
   const { data, error } = await client
     .from("tournaments")
-    .select("id, name, format, rounds_planned, status, created_at, tournament_players(player_id, withdrawn, players(id, name, club, rating_std))")
+    .select("id, name, format, rounds_planned, status, created_at, tiebreaks, tournament_players(player_id, withdrawn, players(id, name, club, rating_std))")
     .eq("id", id)
     .maybeSingle();
   if (error) {
     throw new Error("Impossible de charger ce tournoi.");
   }
   return data ?? null;
+}
+
+/**
+ * A tournament with everything the standings need, reshaped into the state
+ * the engines expect: { players: [{id, name}], rounds: [{pairings}] }.
+ * Publicly readable, like every read here.
+ * @returns {{tournament: object, state: object}|null}
+ */
+export async function getTournamentResults(id) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .select(
+      "id, name, format, rounds_planned, status, created_at, tiebreaks, " +
+      "tournament_players(players(id, name)), " +
+      "rounds(number, pairings(board, white_player_id, black_player_id, result))"
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Impossible de charger le classement de ce tournoi.");
+  }
+  if (!data) return null;
+
+  const players = (data.tournament_players ?? [])
+    .map((entry) => entry.players)
+    .filter(Boolean)
+    .map((player) => ({ id: player.id, name: player.name }));
+
+  // PostgREST does not promise an order on embedded rows, so both levels are
+  // sorted here: the cumulative tie-break reads rounds in sequence.
+  const rounds = [...(data.rounds ?? [])]
+    .sort((a, b) => a.number - b.number)
+    .map((round) => ({
+      number: round.number,
+      pairings: [...(round.pairings ?? [])]
+        .sort((a, b) => (a.board ?? 0) - (b.board ?? 0))
+        .map((pairing) => ({
+          white: pairing.white_player_id,
+          black: pairing.black_player_id,
+          result: pairing.result,
+        })),
+    }));
+
+  return { tournament: data, state: { players, rounds } };
 }

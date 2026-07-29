@@ -3,10 +3,12 @@
 //   #/                   home (public directory placeholder)
 //   #/nouveau-tournoi    tournament creation (admins only, else redirected)
 //   #/tournoi/<id>       tournament view (placeholder for now)
+//   #/tournoi/<id>/classement  standings, public, once play has started
 
 import { initAuth } from "./auth.js";
 import { initTournamentForm, openTournamentForm } from "./tournament-form.js";
 import { openHome } from "./home.js";
+import { openStandings } from "./standings.js";
 import { getCurrentRole, getTournament, onAuthChange } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { FORMATS } from "../tournament-validation.js";
@@ -16,7 +18,7 @@ function el(id) {
   return document.getElementById(id);
 }
 
-const VIEWS = ["view-home", "view-new-tournament", "view-tournament"];
+const VIEWS = ["view-home", "view-new-tournament", "view-tournament", "view-standings"];
 
 function showView(id) {
   for (const view of VIEWS) {
@@ -40,6 +42,17 @@ async function showTournament(id) {
     const statusLabel = STATUS_LABELS[tournament.status] ?? tournament.status;
     el("tournament-meta").textContent =
       `Format ${formatLabel} · ${tournament.rounds_planned} rondes prévues · statut : ${statusLabel}`;
+    // Standings only make sense once play has started.
+    const standingsSlot = el("tournament-standings-link");
+    standingsSlot.innerHTML = "";
+    if (tournament.status === "ongoing" || tournament.status === "archived") {
+      const link = document.createElement("a");
+      link.className = "button-link";
+      link.href = `#/tournoi/${encodeURIComponent(tournament.id)}/classement`;
+      link.textContent = "Voir le classement";
+      standingsSlot.append(link);
+    }
+
     const list = el("tournament-players");
     for (const tp of tournament.tournament_players ?? []) {
       const item = document.createElement("li");
@@ -69,6 +82,13 @@ async function route() {
     }
     showView("view-new-tournament");
     await openTournamentForm();
+    return;
+  }
+
+  const standingsMatch = hash.match(/^#\/tournoi\/(.+)\/classement$/);
+  if (standingsMatch) {
+    showView("view-standings");
+    await openStandings(decodeURIComponent(standingsMatch[1]));
     return;
   }
 

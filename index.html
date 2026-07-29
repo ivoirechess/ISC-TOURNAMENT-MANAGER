@@ -139,6 +139,24 @@
     }
     .status-ongoing { border-color: var(--accent); color: var(--accent); }
     .status-draft { border-style: dashed; }
+    .tiebreak-row { display: block; margin: 0.3rem 0; }
+    .tiebreak-row select {
+      font: inherit;
+      padding: 0.3rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin-left: 0.4rem;
+    }
+    .table-scroll { overflow-x: auto; }
+    #standings-table { border-collapse: collapse; width: 100%; background: #fff; }
+    #standings-table th, #standings-table td {
+      border: 1px solid var(--line);
+      padding: 0.4rem 0.6rem;
+      text-align: right;
+      white-space: nowrap;
+    }
+    #standings-table th:nth-child(2), #standings-table td:nth-child(2) { text-align: left; }
+    #standings-table thead th { background: #f2f2f2; font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -178,6 +196,20 @@
         <small id="t-rounds-hint" class="muted"></small>
 
         <fieldset>
+          <legend>Départages</legend>
+          <p class="muted">
+            Les points départagent toujours en premier, et l'ordre alphabétique
+            tranche en tout dernier recours. Choisissez de 2 à 6 critères
+            intermédiaires, appliqués dans l'ordre.
+          </p>
+          <div id="tiebreak-selects"></div>
+          <p>
+            <button type="button" id="tiebreak-add">+ Ajouter un départage</button>
+            <button type="button" id="tiebreak-remove">− Retirer le dernier</button>
+          </p>
+        </fieldset>
+
+        <fieldset>
           <legend>Joueurs participants</legend>
           <p id="players-error" class="error"></p>
           <input id="player-search" type="search" placeholder="Rechercher dans l'annuaire…">
@@ -206,10 +238,21 @@
     <section id="view-tournament" hidden>
       <h2 id="tournament-title"></h2>
       <p id="tournament-meta" class="muted"></p>
+      <p id="tournament-standings-link"></p>
       <h3>Joueurs inscrits</h3>
       <ul id="tournament-players"></ul>
-      <p class="notice">Vue détaillée du tournoi — rondes et classement à venir.</p>
+      <p class="notice">Vue détaillée du tournoi — saisie des rondes à venir.</p>
       <p><a href="#/">← Retour à l'accueil</a></p>
+    </section>
+
+    <section id="view-standings" hidden>
+      <h2 id="standings-title"></h2>
+      <p id="standings-meta" class="muted"></p>
+      <p id="standings-error" class="error"></p>
+      <div class="table-scroll">
+        <table id="standings-table"></table>
+      </div>
+      <p><a id="standings-back" href="#/">← Retour au tournoi</a></p>
     </section>
 
     <section id="login-view" hidden>
