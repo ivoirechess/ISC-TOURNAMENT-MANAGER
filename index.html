@@ -157,6 +157,35 @@
     }
     #standings-table th:nth-child(2), #standings-table td:nth-child(2) { text-align: left; }
     #standings-table thead th { background: #f2f2f2; font-size: 0.8rem; }
+    .success { color: var(--accent); font-size: 0.9rem; min-height: 1.2em; }
+    #view-tournament-edit fieldset {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin: 0 0 1rem;
+      max-width: 34rem;
+    }
+    #view-tournament-edit input {
+      padding: 0.45rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      font: inherit;
+      width: 100%;
+    }
+    #view-tournament-edit h4 { margin: 0.8rem 0 0.3rem; font-size: 0.9rem; }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .result-row select {
+      font: inherit;
+      padding: 0.25rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
@@ -243,6 +272,41 @@
       <ul id="tournament-players"></ul>
       <p class="notice">Vue détaillée du tournoi — saisie des rondes à venir.</p>
       <p><a href="#/">← Retour à l'accueil</a></p>
+    </section>
+
+    <section id="view-tournament-edit" hidden>
+      <h2 id="edit-title"></h2>
+      <p id="edit-meta" class="muted"></p>
+
+      <fieldset>
+        <legend>Nom du tournoi</legend>
+        <form id="edit-name-form">
+          <input id="edit-name" required>
+          <p><button type="submit" class="primary">Enregistrer le nom</button></p>
+          <p id="edit-name-feedback"></p>
+        </form>
+      </fieldset>
+
+      <fieldset>
+        <legend>Nombre de rondes prévues</legend>
+        <form id="edit-rounds-form">
+          <input id="edit-rounds" type="number" min="1" step="1">
+          <p id="edit-rounds-reason" class="muted"></p>
+          <p><button type="submit" id="edit-rounds-save" class="primary">Enregistrer les rondes</button></p>
+          <p id="edit-rounds-feedback"></p>
+        </form>
+      </fieldset>
+
+      <fieldset>
+        <legend>Corriger un résultat</legend>
+        <p class="muted">
+          Les appariements ne changent pas : seul le résultat est modifiable.
+        </p>
+        <div id="edit-results"></div>
+        <p id="edit-results-feedback"></p>
+      </fieldset>
+
+      <p><a id="edit-back" href="#/">← Retour au tournoi</a></p>
     </section>
 
     <section id="view-standings" hidden>
