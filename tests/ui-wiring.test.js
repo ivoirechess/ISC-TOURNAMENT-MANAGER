@@ -1,0 +1,97 @@
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+
+const root = new URL("../", import.meta.url);
+const read = (path) => readFileSync(new URL(path, root), "utf8");
+const html = read("index.html");
+const app = read("src/ui/app.js");
+
+// These are static checks on the source, not on a running page: they catch
+// the wiring mistakes that leave a button silently dead, which is exactly
+// how the sign-in dialog stopped opening.
+describe("câblage de l'interface", () => {
+  test("chaque identifiant utilisé par le JS existe dans index.html", () => {
+    // Un `el("id")` qui ne trouve rien renvoie null, et le
+    // `.addEventListener` qui suit leve — ce qui, au demarrage, tuait des
+    // pans entiers de l'interface sans le moindre message.
+    const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
+    const missing = [];
+    for (const file of readdirSync(new URL("src/ui/", root))) {
+      const source = read(`src/ui/${file}`);
+      for (const match of source.matchAll(/\bel\("([^"]+)"\)/g)) {
+        if (!ids.has(match[1])) missing.push(`src/ui/${file} → #${match[1]}`);
+      }
+      for (const match of source.matchAll(/getElementById\("([^"]+)"\)/g)) {
+        if (!ids.has(match[1])) missing.push(`src/ui/${file} → #${match[1]}`);
+      }
+    }
+    assert.deepEqual([...new Set(missing)], []);
+  });
+
+  test("la connexion est câblée avant les autres écrans", () => {
+    // L'ordre compte : c'est ce qui garantit qu'une panne ailleurs ne prive
+    // pas l'organisateur de la connexion.
+    const body = app.slice(app.indexOf("async function init()"));
+    const auth = body.indexOf("initAuth");
+    const form = body.indexOf("initTournamentForm");
+    const edit = body.indexOf("initTournamentEdit");
+    assert.ok(auth !== -1 && form !== -1 && edit !== -1);
+    assert.ok(auth < form, "initAuth doit venir avant initTournamentForm");
+    assert.ok(auth < edit, "initAuth doit venir avant initTournamentEdit");
+  });
+
+  test("chaque étape du démarrage est isolée", () => {
+    const body = app.slice(app.indexOf("async function init()"));
+    for (const initialiser of ["initAuth", "initTournamentForm", "initTournamentEdit"]) {
+      assert.match(
+        body,
+        new RegExp(`step\\("[^"]+", ${initialiser}\\)`),
+        `${initialiser} doit passer par step(), pour qu'un echec n'emporte pas le reste`
+      );
+    }
+  });
+
+  test("un démarrage qui échoue le dit à l'utilisateur", () => {
+    // Sans cela l'erreur reste dans la console, invisible pour l'arbitre.
+    assert.match(app, /init\(\)\.catch\(/);
+    assert.match(app, /el\("startup-error"\)/);
+    assert.ok(html.includes('id="startup-error"'));
+  });
+});
+
+describe("identité visuelle", () => {
+  test("le logo est un fichier versionné, référencé par l'en-tête", () => {
+    const size = statSync(new URL("assets/logo.png", root)).size;
+    assert.ok(size > 1000, "le logo doit être un vrai fichier");
+    assert.ok(size < 300 * 1024, `logo trop lourd pour un en-tête : ${size} octets`);
+    assert.match(html, /class="brand-logo" src="\.\/assets\/logo\.png"/);
+  });
+
+  test("il garde ses proportions et porte un texte alternatif", () => {
+    const tag = html.slice(html.indexOf('class="brand-logo"'));
+    const img = tag.slice(0, tag.indexOf(">"));
+    assert.match(img, /width="192"/);
+    assert.match(img, /height="192"/);
+    assert.match(img, /alt="[^"]+"/);
+    // Carre affiche dans une boite carree, avec object-fit en filet.
+    assert.match(html, /\.brand-logo \{[^}]*object-fit: contain;/s);
+  });
+
+  test("le menu profil affiche nom et rôle une fois connecté", () => {
+    for (const id of ["profile-button", "profile-menu", "auth-name", "auth-role"]) {
+      assert.ok(html.includes(`id="${id}"`), `#${id} manquant`);
+    }
+    const auth = read("src/ui/auth.js");
+    assert.match(auth, /name\.textContent = sessionDisplayName\(session\)/);
+    assert.match(auth, /roleName\.textContent = roleLabel\(role\)/);
+  });
+
+  test("le bouton profil reste accessible au clavier et aux lecteurs d'écran", () => {
+    const button = html.slice(html.indexOf('id="profile-button"'));
+    const tag = button.slice(0, button.indexOf(">"));
+    assert.match(tag, /aria-label="[^"]+"/);
+    assert.match(tag, /aria-expanded="false"/);
+    assert.match(tag, /aria-controls="profile-menu"/);
+  });
+});
