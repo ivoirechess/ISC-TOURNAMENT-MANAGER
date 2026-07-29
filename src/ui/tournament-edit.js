@@ -22,7 +22,7 @@ import {
   validateResultEdit,
 } from "../tournament-edit.js";
 import { canClearResult, deleteConfirmationMessage } from "../tournament-delete.js";
-import { STATUS_LABELS } from "../tournament-list.js";
+import { stateLabel } from "../tournament-lifecycle.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -265,7 +265,7 @@ export async function openTournamentEdit(id) {
   current = payload;
   const { tournament } = current;
   el("edit-title").textContent = `Modifier — ${tournament.name}`;
-  el("edit-meta").textContent = `Statut : ${STATUS_LABELS[tournament.status] ?? tournament.status}`;
+  el("edit-meta").textContent = `Statut : ${stateLabel(tournament)}`;
   el("edit-name").value = tournament.name;
   el("edit-delete").disabled = false;
   renderRoundsSection();

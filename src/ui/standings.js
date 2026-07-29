@@ -3,7 +3,7 @@
 
 import { getTournamentResults } from "../data.js";
 import { computeStandings, TIEBREAK_LABELS } from "../tiebreaks.js";
-import { STATUS_LABELS } from "../tournament-list.js";
+import { stateLabel } from "../tournament-lifecycle.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -83,7 +83,7 @@ export async function openStandings(id) {
 
   const selectedTiebreaks = tournament.tiebreaks ?? [];
   el("standings-meta").textContent =
-    `${STATUS_LABELS[tournament.status] ?? tournament.status} · départages : ` +
+    `${stateLabel(tournament)} · départages : ` +
     `Points, ${selectedTiebreaks.map((k) => TIEBREAK_LABELS[k] ?? k).join(", ")}, ` +
     "puis ordre alphabétique.";
 

@@ -1,0 +1,5 @@
+import test from "node:test";import assert from "node:assert/strict";
+import {pairingsExport,resultSheetsExport,standingsExport,startingListExport} from "../src/tournament-exports.js";
+const payload={tournament:{name:"Open d’Abidjan",rating_type:"rapid",tiebreaks:["buchholz","wins"]},state:{players:[{id:"a",name:"Alice",fide_id:1,federation:"CIV",club:"A",rating_rapid:1800,birth_year:1990,private_email:"secret@test.ci",local_notes:"secret"},{id:"b",name:"Bob",rating_rapid:0}],rounds:[{number:1,validated_at:"x",pairings:[{board:1,white:"a",black:"b",result:"1-0"}]}]}};
+test("exports Excel couvrent liste, appariements et classement",()=>{for(const file of [startingListExport(payload),pairingsExport(payload),standingsExport(payload)]){assert.match(file.filename,/\.xls$/);assert.match(file.content,/Workbook/);assert.doesNotMatch(file.content,/secret@test|1990|local_notes|secret/)}});
+test("feuilles de résultats imprimables sans données privées",()=>{const file=resultSheetsExport(payload);assert.match(file.content,/Table 1/);assert.match(file.content,/Signatures/);assert.doesNotMatch(file.content,/secret@test|1990|local_notes|secret/)});

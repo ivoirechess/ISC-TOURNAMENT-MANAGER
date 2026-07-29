@@ -1,0 +1,32 @@
+name: Synchronisation mensuelle FIDE CIV
+on:
+  schedule:
+    - cron: '20 5 3 * *'
+  workflow_dispatch:
+    inputs:
+      period:
+        description: Période YYYY-MM
+        required: true
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Télécharger, vérifier et produire le rapport
+        env:
+          PERIOD: ${{ inputs.period || '' }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          PERIOD="${PERIOD:-$(date -u +%Y-%m)}"
+          python scripts/fide_civ.py --download --period "$PERIOD" --output fide-civ-report.json --apply
+          sha256sum fide-civ-report.json | tee fide-civ-report.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fide-civ-${{ github.run_id }}
+          path: |
+            fide-civ-report.json
+            fide-civ-report.sha256

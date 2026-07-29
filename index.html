@@ -52,6 +52,7 @@
     .brand-copy { display: flex; flex-direction: column; }
     .brand-copy strong { font-size: 1rem; line-height: 1.2; }
     .brand-copy small { color: var(--accent); font-weight: 650; letter-spacing: 0.03em; }
+    .main-nav { display:flex;gap:.75rem;align-items:center; }
     .profile { position: relative; }
     #profile-button {
       display: grid;
@@ -83,7 +84,7 @@
     #auth-role { display: block; color: var(--accent); font-size: 0.8rem; margin-top: 0.1rem; }
     .menu-action { width: 100%; border: 0; text-align: left; padding: 0.65rem; border-radius: 0.45rem; }
     .menu-action:hover { background: #f3f5f3; }
-    main { flex: 1; max-width: 60rem; width: 100%; margin: 0 auto; padding: 1.5rem 1.25rem; }
+    main { flex: 1; max-width: 78rem; width: 100%; margin: 0 auto; padding: 1.5rem 1.25rem; }
     footer {
       padding: 1rem 1.25rem;
       border-top: 1px solid var(--line);
@@ -139,7 +140,7 @@
       text-decoration: none;
     }
     #tournament-form { max-width: 34rem; }
-    #tournament-form input:not([type="radio"]):not([type="checkbox"]) {
+    #tournament-form input:not([type="radio"]):not([type="checkbox"]), #tournament-form textarea, #tournament-form select {
       width: 100%;
       padding: 0.45rem;
       border: 1px solid var(--line);
@@ -152,6 +153,13 @@
       border-radius: 6px;
       margin: 0 0 1rem;
     }
+    .wizard-steps { display: flex; gap: 0.35rem; overflow-x: auto; margin-bottom: 1rem; }
+    .wizard-steps span { white-space: nowrap; padding: 0.35rem 0.6rem; border-radius: 999px; background: #eee; font-size: 0.78rem; }
+    .wizard-steps span.active { background: #dcefe1; color: var(--accent-dark); font-weight: 700; }
+    .wizard-page[hidden] { display: none; }
+    .wizard-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 1rem; }
+    .wizard-grid .wide { grid-column: 1/-1; }
+    .wizard-nav { display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 1rem; }
     .format-choice { display: block; margin: 0.25rem 0; }
     .format-choice.disabled { color: var(--muted); }
     #player-list {
@@ -163,8 +171,66 @@
       background: #fff;
     }
     .player-row { display: block; padding: 0.15rem 0; }
-    #view-home h2 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
-    #home-actions { margin-bottom: 0.5rem; }
+    #view-home h1 { margin: 0; font-size: clamp(1.45rem, 3vw, 2.1rem); }
+    #view-home h2 { font-size: 1.05rem; margin: 1.5rem 0 0.6rem; }
+    .home-heading { display: flex; justify-content: space-between; align-items: start; gap: 1rem; margin-bottom: 1.25rem; }
+    .home-heading p { margin: 0.35rem 0 0; color: var(--muted); }
+    #home-actions { flex: 0 0 auto; }
+    .directory-panel { padding: 1rem; border: 1px solid var(--line); border-radius: 0.8rem; background: #fff; box-shadow: 0 4px 18px rgb(28 28 28 / 5%); }
+    .directory-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; border-bottom: 1px solid var(--line); padding-bottom: 0.75rem; }
+    .directory-tabs button { border: 0; border-radius: 999px; padding: 0.4rem 0.75rem; color: var(--muted); }
+    .directory-tabs button.active { background: #e5f2e8; color: var(--accent-dark); font-weight: 700; }
+    .directory-filters { display: grid; grid-template-columns: minmax(15rem, 2fr) repeat(3, minmax(8rem, 1fr)); gap: 0.65rem; margin: 1rem 0 0.4rem; }
+    .directory-filters label { font-size: 0.75rem; color: var(--muted); }
+    .directory-filters input, .directory-filters select { display: block; width: 100%; margin-top: 0.2rem; padding: 0.55rem; border: 1px solid var(--line); border-radius: 0.4rem; background: #fff; font: inherit; }
+    .directory-summary { display: flex; justify-content: space-between; min-height: 2rem; align-items: center; }
+    .directory-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .directory-table th { padding: 0.65rem 0.55rem; background: #f4f6f4; color: #4f5b52; font-size: 0.72rem; text-align: left; text-transform: uppercase; letter-spacing: 0.035em; }
+    .directory-table td { padding: 0.8rem 0.55rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    .directory-table tbody tr:hover { background: #f8fbf9; }
+    .directory-name { color: var(--accent-dark); font-weight: 720; text-decoration: none; }
+    .directory-name:hover { text-decoration: underline; }
+    .directory-status { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.78rem; }
+    .directory-status::before { content: ""; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #8a8a8a; box-shadow: 0 0 0 3px #eee; }
+    .directory-status-upcoming::before { background: #d97706; box-shadow: 0 0 0 3px #ffedd5; }
+    .directory-status-ongoing::before { background: #16803c; box-shadow: 0 0 0 3px #dcfce7; }
+    .directory-status-finished::before { background: #2563ad; box-shadow: 0 0 0 3px #dbeafe; }
+    .directory-status-cancelled::before { background: #b3261e; box-shadow: 0 0 0 3px #fee2e2; }
+    .directory-status-draft::before { background: #777; box-shadow: 0 0 0 3px #eee; }
+    .tournament-hero { display: grid; grid-template-columns: 1fr auto; gap: 1.25rem; padding: 1.25rem; background: #fff; border: 1px solid var(--line); border-radius: 0.85rem; }
+    .tournament-hero h1 { margin: 0.35rem 0 0.7rem; }
+    .tournament-meta-grid { display: grid; grid-template-columns: repeat(3, minmax(10rem, 1fr)); gap: 0.8rem 1.25rem; margin: 1rem 0 0; }
+    .tournament-meta-grid div, .overview-grid div { min-width: 0; }
+    .tournament-meta-grid dt, .overview-grid dt { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; }
+    .tournament-meta-grid dd, .overview-grid dd { margin: 0.15rem 0 0; }
+    #tournament-poster { width: 11rem; max-height: 15rem; object-fit: cover; border-radius: 0.5rem; }
+    .tournament-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+    .connection-state {display:inline-flex;align-items:center;gap:.35rem;color:var(--muted);font-size:.85rem}.connection-state::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:#888}.connection-state.connected::before{background:#17823b}.connection-state.unavailable::before{background:#b3261e}
+    .tournament-tabs { display: flex; overflow-x: auto; gap: 0.25rem; border-bottom: 1px solid var(--line); }
+    .tournament-tabs button { border: 0; border-radius: 0; padding: 0.75rem 1rem; white-space: nowrap; }
+    .tournament-tabs button.active { color: var(--accent-dark); border-bottom: 3px solid var(--accent); font-weight: 700; }
+    .tournament-tab-panel { padding: 1rem 0; }
+    .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .overview-card, .organizer-panel { padding: 1rem; background: #fff; border: 1px solid var(--line); border-radius: 0.65rem; }
+    .overview-card h3 { margin-top: 0; }
+    .organizer-panel { margin-top: 1rem; border-color: #b7d5bf; background: #f5faf6; }
+    .public-table { width: 100%; border-collapse: collapse; background: #fff; }
+    .public-table th, .public-table td { padding: 0.65rem; border-bottom: 1px solid var(--line); text-align: left; }
+    .standing-round-links { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+    .player-filters { display:grid;grid-template-columns:2fr repeat(5,1fr);gap:.6rem;margin:1rem 0; }
+    .player-filters input,.player-filters select {width:100%;padding:.5rem;border:1px solid var(--line);border-radius:.4rem;background:#fff;}
+    .pagination {display:flex;justify-content:center;align-items:center;gap:.75rem;margin:1rem;}
+    .fide-fields,.local-fields {padding:1rem;border-radius:.6rem;margin:.75rem 0;}
+    .fide-fields {background:#eef5ff;border:1px solid #c8dcf5}.local-fields{background:#f5faf6;border:1px solid #c8e0ce}
+    .clubs-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem;}
+    .club-card {border:1px solid var(--line);border-radius:.7rem;padding:1rem;background:#fff;}
+    .admin-grid {display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
+    .admin-grid section {border:1px solid var(--line);border-radius:.7rem;padding:1rem;}
+    .admin-grid li {margin:.6rem 0;}.admin-grid li button{margin-left:.4rem;}
+    .directory-empty { margin: 1rem 0 0; padding: 2.25rem 1rem; text-align: center; color: var(--muted); background: #fafafa; border-radius: 0.5rem; }
+    #directory-more { display: block; margin: 1rem auto 0; }
+    #directory-more[hidden] { display: none; }
+    #drafts-section { margin-top: 1.5rem; }
     .tournament-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
@@ -277,7 +343,8 @@
     .round-tab { font-size: 0.85rem; padding: 0.3rem 0.7rem; }
     .round-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .pairing-row {
-      display: flex;
+      display: grid;
+      grid-template-columns: 3rem minmax(8rem, 1fr) minmax(8rem, auto) minmax(8rem, 1fr);
       align-items: center;
       gap: 0.75rem;
       padding: 0.35rem 0;
@@ -289,7 +356,8 @@
       font-size: 0.8rem;
       text-align: right;
     }
-    .pairing-names { flex: 1; }
+    .pairing-player:last-child { text-align: right; }
+    .pairing-head { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; background: #f4f6f4; }
     .entry-group { display: flex; gap: 0.25rem; }
     button.entry { padding: 0.2rem 0.55rem; font-size: 0.85rem; min-width: 3rem; }
     button.entry.active { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -297,6 +365,44 @@
     @media (max-width: 32rem) {
       .brand-copy small { display: none; }
       .brand-logo { width: 2.75rem; height: 2.75rem; }
+    }
+    @media (max-width: 64rem) {
+      .directory-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .directory-table, .directory-table tbody { display: block; }
+      .directory-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      .directory-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 1rem; padding: 1rem; margin-top: 0.75rem; border: 1px solid var(--line); border-radius: 0.65rem; background: #fff; }
+      .directory-table td { display: flex; flex-direction: column; gap: 0.15rem; padding: 0; border: 0; min-width: 0; }
+      .directory-table td::before { content: attr(data-label); color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.035em; }
+      .directory-table td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; font-size: 1.05rem; }
+      .tournament-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .player-filters {grid-template-columns:repeat(2,minmax(0,1fr));}
+      .public-table, .public-table tbody { display: block; }
+      .public-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      .public-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0.85rem; margin-bottom: 0.7rem; border: 1px solid var(--line); border-radius: 0.6rem; }
+      .public-table td { display: flex; flex-direction: column; border: 0; padding: 0.35rem; }
+      .public-table td::before { content: attr(data-label); color: var(--muted); font-size: 0.68rem; text-transform: uppercase; }
+    }
+    @media (max-width: 32rem) {
+      main { padding: 1rem 0.75rem; }
+      .home-heading { display: block; }
+      #home-actions { margin-top: 0.75rem; }
+      .directory-panel { padding: 0.75rem; }
+      .directory-filters { grid-template-columns: 1fr; }
+      .directory-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.6rem; }
+      .directory-tabs button { white-space: nowrap; }
+      .directory-table tr { grid-template-columns: 1fr 1fr; padding: 0.85rem; }
+      .tournament-hero { grid-template-columns: 1fr; }
+      #tournament-poster { width: 100%; max-height: 24rem; }
+      .tournament-meta-grid, .overview-grid { grid-template-columns: 1fr; }
+      .wizard-grid { grid-template-columns: 1fr; }
+      .wizard-grid .wide { grid-column: auto; }
+      .player-filters {grid-template-columns:1fr;}
+      .admin-grid {grid-template-columns:1fr;}
+      .pairing-row { grid-template-columns: 2rem 1fr; padding: 0.75rem; border: 1px solid var(--line); border-radius: 0.5rem; margin-bottom: 0.6rem; }
+      .pairing-head { display: none; }
+      .pairing-row .board-number { grid-row: 1 / 3; }
+      .pairing-row .entry-group, .pairing-row .result-shown, .pairing-row .muted { grid-column: 2; }
+      .pairing-player:last-child { text-align: left; }
     }
   </style>
 </head>
@@ -308,6 +414,7 @@
            alt="IvoireChess Côte d'Ivoire">
       <span class="brand-copy"><strong>ISC Tournament Manager</strong><small>Ivoire Chess · Côte d'Ivoire</small></span>
     </a>
+    <nav class="main-nav"><a href="#/clubs">Clubs</a> <a href="#/joueurs">Joueurs</a></nav>
     <div class="profile">
       <button id="profile-button" type="button" aria-label="Ouvrir le menu du profil" aria-expanded="false" aria-controls="profile-menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path></svg>
@@ -327,34 +434,46 @@
     <p id="startup-error" class="error startup-error" hidden></p>
 
     <section id="view-home">
-      <!-- The create button is injected here by src/ui/home.js for admins
-           only: absent from the DOM for the public, not just hidden. -->
-      <div id="home-actions"></div>
+      <div class="home-heading">
+        <div><h1>Tournois d’échecs en Côte d’Ivoire</h1><p>Calendrier, résultats et archives de la communauté ivoirienne.</p></div>
+        <div id="home-actions"></div>
+      </div>
       <p id="home-error" class="error"></p>
-
-      <h2>En cours</h2>
-      <div id="current-tournaments" class="tournament-grid"></div>
-
-      <h2>Archives</h2>
-      <div id="archived-tournaments" class="tournament-grid"></div>
+      <div class="directory-panel">
+        <nav id="directory-tabs" class="directory-tabs" aria-label="Filtrer par statut"></nav>
+        <div class="directory-filters">
+          <label>Rechercher<input id="directory-search" type="search" placeholder="Tournoi, organisateur, ville, lieu ou club"></label>
+          <label>Format<select id="directory-format"></select></label>
+          <label>Cadence<select id="directory-cadence"></select></label>
+          <label>Année<select id="directory-year"></select></label>
+        </div>
+        <div class="directory-summary"><span id="directory-count" class="muted"></span><span id="directory-loading" class="muted">Chargement des tournois…</span></div>
+        <div id="directory-results" aria-live="polite"></div>
+        <button id="directory-more" type="button" hidden>Voir plus</button>
+      </div>
+      <section id="drafts-section" hidden>
+        <h2>Mes brouillons</h2>
+        <div id="draft-results"></div>
+      </section>
     </section>
 
     <section id="view-new-tournament" hidden>
       <h2>Créer un tournoi</h2>
+      <div id="wizard-steps" class="wizard-steps" aria-label="Étapes de création"></div>
       <form id="tournament-form">
-        <label for="t-name">Nom du tournoi *</label>
-        <input id="t-name" required>
-
-        <fieldset>
-          <legend>Format</legend>
-          <div id="t-formats"></div>
-        </fieldset>
-
-        <label for="t-rounds">Nombre de rondes prévues *</label>
-        <input id="t-rounds" type="number" min="1" step="1" value="5">
-        <small id="t-rounds-hint" class="muted"></small>
-
-        <fieldset>
+        <fieldset class="wizard-page" data-step="0"><legend>Informations générales</legend><div class="wizard-grid">
+          <label>Nom *<input id="t-name" required></label><label>Date et heure<input id="t-starts" type="datetime-local"></label>
+          <label class="wide">Description<textarea id="t-description" rows="4"></textarea></label><label>Ville<input id="t-city"></label><label>Salle<input id="t-venue"></label>
+          <label class="wide">Adresse<input id="t-address"></label><label>Organisateur<input id="t-organizer"></label><label>Contact public<input id="t-contact" type="email"></label>
+          <label>Lien d’inscription<input id="t-registration" type="url"></label><label>Affiche (URL)<input id="t-poster" type="url"></label>
+        </div></fieldset>
+        <fieldset class="wizard-page" data-step="1" hidden><legend>Format et cadence</legend><div class="wizard-grid">
+          <div><strong>Format</strong><div id="t-formats"></div></div><label>Cadence<select id="t-cadence"><option value="standard">Classique</option><option value="rapid">Rapide</option><option value="blitz">Blitz</option></select></label>
+          <label>Cadence détaillée<input id="t-time-control" placeholder="90 min + 30 s/coup"></label><label>Type de classement<select id="t-ranking"><option value="elo">Elo</option><option value="national">National</option><option value="none">Aucun</option></select></label>
+          <label><input id="t-fide-rated" type="checkbox"> Homologation FIDE</label><label>Maximum de joueurs<input id="t-max-players" type="number" min="2"></label>
+          <label>Nombre de rondes *<input id="t-rounds" type="number" min="1" step="1" value="5"><small id="t-rounds-hint" class="muted"></small></label>
+        </div></fieldset>
+        <fieldset class="wizard-page" data-step="2" hidden>
           <legend>Départages</legend>
           <p class="muted">
             Les points départagent toujours en premier, et l'ordre alphabétique
@@ -367,8 +486,7 @@
             <button type="button" id="tiebreak-remove">− Retirer le dernier</button>
           </p>
         </fieldset>
-
-        <fieldset>
+        <fieldset class="wizard-page" data-step="3" hidden>
           <legend>Joueurs participants</legend>
           <p id="players-error" class="error"></p>
           <input id="player-search" type="search" placeholder="Rechercher dans l'annuaire…">
@@ -387,29 +505,56 @@
             <p><button type="button" id="np-add">Ajouter à l'annuaire</button></p>
           </details>
         </fieldset>
-
-        <p id="t-warnings" class="warning"></p>
-        <p id="t-errors" class="error"></p>
-        <button id="t-submit" type="submit" class="primary">Créer le tournoi</button>
+        <fieldset class="wizard-page" data-step="4" hidden><legend>Vérification</legend><div id="t-review"></div></fieldset>
+        <fieldset class="wizard-page" data-step="5" hidden><legend>Enregistrement</legend><p>La création du tournoi, des inscriptions et du calendrier sera enregistrée dans une transaction unique.</p></fieldset>
+        <fieldset class="wizard-page" data-step="6" hidden><legend>Publication facultative</legend><label><input id="t-publish" type="checkbox"> Publier immédiatement le tournoi</label></fieldset>
+        <p id="t-warnings" class="warning"></p><p id="t-errors" class="error"></p>
+        <div class="wizard-nav"><button id="wizard-prev" type="button">Précédent</button><button id="wizard-next" type="button" class="primary">Suivant</button><button id="t-submit" type="submit" class="primary" hidden>Créer le tournoi</button></div>
       </form>
     </section>
 
-    <section id="view-tournament" hidden>
-      <h2 id="tournament-title"></h2>
-      <p id="tournament-meta" class="muted"></p>
-      <p id="tournament-standings-link"></p>
-      <div id="tournament-actions"></div>
-      <p id="tournament-actions-feedback"></p>
-      <h3>Rondes</h3>
-      <div id="rounds-tabs" class="round-tabs"></div>
-      <p id="rounds-progress" class="muted"></p>
-      <div id="rounds-board"></div>
-      <p id="rounds-next"></p>
-      <p id="rounds-feedback"></p>
+    <section id="view-players" hidden><p><a href="#/">← Tournois</a></p><h1>Annuaire des joueurs</h1><div class="player-filters">
+      <input id="players-search" type="search" placeholder="Nom, ID FIDE ou club"><select id="players-title"><option value="">Tous les titres</option><option>GM</option><option>IM</option><option>FM</option><option>CM</option><option>WGM</option><option>WIM</option><option>WFM</option><option>WCM</option></select>
+      <select id="players-active"><option value="">Tous</option><option value="true">Actifs</option><option value="false">Inactifs</option></select><select id="players-club"></select><select id="players-rated"><option value="">Classés et non classés</option><option value="rated">Classés</option><option value="unrated">Non classés</option></select>
+      <select id="players-sort"><option value="rating_std">Elo standard</option><option value="rating_rapid">Elo rapide</option><option value="rating_blitz">Elo blitz</option><option value="name">Nom</option></select></div>
+      <p id="players-loading">Chargement…</p><p id="players-directory-error" class="error"></p><p id="players-count" class="muted"></p><table class="public-table"><thead><tr><th>Joueur</th><th>Titre</th><th>ID FIDE</th><th>Fédération</th><th>Club</th><th>Standard</th><th>Rapide</th><th>Blitz</th><th>Activité</th></tr></thead><tbody id="players-directory-body"></tbody></table><div class="pagination"><button id="players-prev">Précédent</button><button id="players-next">Suivant</button></div>
+    </section>
 
-      <h3>Joueurs inscrits</h3>
-      <ul id="tournament-players"></ul>
-      <p><a href="#/">← Retour à l'accueil</a></p>
+    <section id="view-player" hidden><p><a href="#/joueurs">← Annuaire des joueurs</a></p><h1 id="player-profile-name"></h1><p id="player-profile-error" class="error"></p><div class="fide-fields"><h2>Données FIDE synchronisées</h2><p id="player-fide-fields"></p><p id="player-ratings"></p><p id="player-activity"></p></div><div class="local-fields"><h2>Données locales</h2><p id="player-local-fields"></p></div><h2>Tournois publics joués</h2><ul id="player-tournaments"></ul><fieldset id="player-local-edit" hidden><legend>Modifier les champs locaux</legend><label>Club<input id="player-club-edit"></label><button id="player-local-save">Enregistrer</button><p id="player-local-feedback"></p></fieldset></section>
+
+    <section id="view-clubs" hidden><p><a href="#/">← Tournois</a></p><h1>Clubs d’échecs</h1><div id="clubs-list" class="clubs-grid"></div></section>
+    <section id="view-club" hidden><p><a href="#/clubs">← Clubs</a></p><h1 id="club-name"></h1><p id="club-description"></p><p id="club-contact"></p><h2>Tournois publics</h2><ul id="club-tournaments"></ul></section>
+    <section id="view-user-administration" hidden><p><a href="#/">← Accueil</a></p><h1>Administration des utilisateurs</h1>
+      <form id="admin-invite-form"><label>E-mail<input id="admin-email" type="email" required></label><label>Club<select id="admin-club" required></select></label><button id="admin-invite-submit" class="primary">Inviter</button><p id="admin-feedback" aria-live="polite"></p></form>
+      <div class="admin-grid"><section><h2>Invitations</h2><ul id="admin-invitations"></ul></section><section><h2>Administrateurs</h2><ul id="club-admins"></ul></section></div>
+    </section>
+
+    <section id="view-tournament" hidden>
+      <header class="tournament-hero">
+        <div><span id="tournament-status"></span><h1 id="tournament-title"></h1>
+          <dl class="tournament-meta-grid">
+            <div><dt>Date et horaires</dt><dd id="tournament-datetime"></dd></div><div><dt>Ville</dt><dd id="tournament-city"></dd></div><div><dt>Salle</dt><dd id="tournament-venue"></dd></div>
+            <div><dt>Adresse</dt><dd id="tournament-address"></dd></div><div><dt>Organisateur</dt><dd id="tournament-organizer"></dd></div><div><dt>Format</dt><dd id="tournament-format"></dd></div>
+            <div><dt>Cadence</dt><dd id="tournament-cadence"></dd></div><div><dt>Rondes</dt><dd id="tournament-round-count"></dd></div><div><dt>Joueurs</dt><dd id="tournament-player-count"></dd></div>
+            <div><dt>Dernière mise à jour</dt><dd id="tournament-updated"></dd></div>
+          </dl>
+        </div><img id="tournament-poster" alt="Affiche du tournoi" hidden>
+      </header>
+      <div class="tournament-tools"><a href="#/">← Retour aux tournois</a><button id="copy-tournament-link" type="button">Copier le lien</button><button id="share-tournament" type="button">Partager</button><button id="refresh-tournament" type="button">Actualiser</button><span id="realtime-state" class="connection-state" role="status">Realtime indisponible</span></div>
+      <div class="tournament-tools" aria-label="Exports publics"><button id="export-starting-list" type="button">Liste de départ (Excel)</button><button id="export-pairings" type="button">Appariements (Excel)</button><button id="export-standings" type="button">Classement (Excel)</button><button id="export-result-sheets" type="button">Feuilles de résultats</button></div>
+      <nav id="tournament-tabs" class="tournament-tabs" role="tablist" aria-label="Contenu du tournoi">
+        <button role="tab" data-tab="overview">Aperçu</button><button role="tab" data-tab="players">Joueurs</button><button role="tab" data-tab="pairings">Appariements</button><button role="tab" data-tab="standings">Classement</button><button role="tab" data-tab="information">Informations</button>
+      </nav>
+      <section class="tournament-tab-panel" data-panel="overview"><div class="overview-grid">
+        <article class="overview-card"><h3>Présentation</h3><p id="overview-description"></p><p><a id="overview-registration" class="button-link" target="_blank" rel="noopener" hidden>S’inscrire</a> <a id="overview-contact" hidden></a></p></article>
+        <article class="overview-card"><h3>Progression</h3><progress id="overview-progress-bar"></progress><p id="overview-progress-label"></p><dl><dt>Prochaine ronde</dt><dd id="overview-next-round"></dd></dl></article>
+        <article class="overview-card"><h3>Informations pratiques</h3><p id="overview-practical"></p></article>
+      </div></section>
+      <section class="tournament-tab-panel" data-panel="players" hidden><table class="public-table"><thead><tr><th>Rang initial</th><th>Joueur</th><th>Titre</th><th>ID FIDE</th><th>Fédération</th><th>Club</th><th>Elo</th></tr></thead><tbody id="tournament-player-rows"></tbody></table></section>
+      <section class="tournament-tab-panel" data-panel="pairings" hidden><div id="rounds-tabs" class="round-tabs"></div><p><label><input id="unplayed-only" type="checkbox"> Afficher seulement les parties sans résultat</label></p><p id="rounds-progress" class="muted"></p><div id="rounds-board"></div><p id="rounds-next"></p><p id="rounds-feedback"></p></section>
+      <section class="tournament-tab-panel" data-panel="standings" hidden><div id="standing-round-links" class="standing-round-links"></div><p id="standings-tiebreaks" class="muted"></p><table id="tournament-standings-table" class="public-table"></table></section>
+      <section class="tournament-tab-panel" data-panel="information" hidden><div class="overview-card"><dl class="overview-grid"><div><dt>Adresse</dt><dd id="info-address"></dd></div><div><dt>Organisateur</dt><dd id="info-organizer"></dd></div><div><dt>Contact public</dt><dd id="info-contact"></dd></div></dl></div></section>
+      <aside id="organizer-panel" class="organizer-panel" hidden><h2>Gestion du tournoi</h2><div id="tournament-actions"></div><p id="tournament-actions-feedback"></p><a id="tournament-edit-link" href="#">Modifier ce tournoi</a></aside>
     </section>
 
     <section id="view-tournament-edit" hidden>

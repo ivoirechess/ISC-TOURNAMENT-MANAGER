@@ -27,6 +27,7 @@ import {
   viewActions,
 } from "../tournament-lifecycle.js";
 import { deleteConfirmationMessage } from "../tournament-delete.js";
+import { isRoundRobin } from "../tournament-validation.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -61,7 +62,7 @@ const BUTTON_LABELS = {
 const BUTTON_HINTS = {
   publish: "Rend le tournoi visible dans l'annuaire public.",
   unpublish: "Retire l'annonce publique. Possible tant que le tournoi n'a pas démarré.",
-  start: "Passe le tournoi en cours et tire la ronde 1.",
+  start: "Passe le tournoi en cours.",
   cancel: "Gèle le tournoi. Sa page publique reste en ligne s'il avait été publié.",
   delete: "Retire le tournoi de l'annuaire et de votre liste.",
 };
@@ -69,10 +70,21 @@ const BUTTON_HINTS = {
 const DONE_MESSAGES = {
   publish: "Tournoi publié : il apparaît maintenant dans l'annuaire.",
   unpublish: "Tournoi dépublié : il n'est plus visible du public.",
-  start: "Tournoi démarré. Ronde 1 tirée.",
   cancel: "Tournoi annulé.",
   delete: "Tournoi supprimé.",
 };
+
+export function startHint(tournament) {
+  return isRoundRobin(tournament?.format)
+    ? "Passe le tournoi en cours et active le calendrier préparé."
+    : "Passe le tournoi en cours et génère la ronde 1.";
+}
+
+export function startDoneMessage(tournament) {
+  return isRoundRobin(tournament?.format)
+    ? "Tournoi démarré. Le calendrier est maintenant actif."
+    : "Tournoi démarré. Ronde 1 générée.";
+}
 
 // Actions that cannot be undone by clicking again, and are asked about first.
 const DESTRUCTIVE = ["cancel", "delete"];
@@ -138,7 +150,7 @@ async function run({ action, tournament, buttons, backend, reload, dialogs }) {
   // the arbiter lands on the boards they are about to fill in. The message
   // comes after the redraw, which would otherwise wipe it.
   await reload?.({ focusRound: action === "start" ? 1 : null });
-  setFeedback(DONE_MESSAGES[action], false);
+  setFeedback(action === "start" ? startDoneMessage(tournament) : DONE_MESSAGES[action], false);
 }
 
 function renderButtons(tournament, actions, context) {
@@ -160,7 +172,7 @@ function renderButtons(tournament, actions, context) {
     button.type = "button";
     button.dataset.action = action;
     button.textContent = BUTTON_LABELS[action];
-    button.title = BUTTON_HINTS[action];
+    button.title = action === "start" ? startHint(tournament) : BUTTON_HINTS[action];
     button.className = DESTRUCTIVE.includes(action) ? "danger" : "primary";
     button.addEventListener("click", () =>
       run({ action, tournament, buttons, ...context })

@@ -108,6 +108,12 @@ export async function getCurrentRole() {
   return data.role;
 }
 
+export async function getCurrentClubIds() {
+  const client=await getClient();const {data:{user}}=await client.auth.getUser();if(!user)return [];
+  const {data,error}=await client.from("club_memberships").select("club_id").eq("user_id",user.id).eq("active",true);
+  if(error)return [];return (data??[]).map(row=>row.club_id);
+}
+
 // ---------------------------------------------------------------------------
 // Players directory
 // ---------------------------------------------------------------------------
@@ -117,12 +123,72 @@ export async function listPlayers() {
   const client = await getClient();
   const { data, error } = await client
     .from("players")
-    .select("id, name, fide_id, club, rating_std, rating_rapid, rating_blitz")
+    .select("id, name, fide_id, club, club_id, fide_title, rating_std, rating_rapid, rating_blitz")
+    .is("merged_into", null)
     .order("name");
   if (error) {
     throw new Error("Impossible de charger l'annuaire des joueurs.");
   }
   return data ?? [];
+}
+
+export async function listClubs() {
+  const client=await getClient(); const {data,error}=await client.from("clubs").select("id,name,slug,logo_url,city,description,public_email,public_phone,website_url,active").order("name");
+  if(error) throw new Error("Impossible de charger les clubs."); return data??[];
+}
+
+export async function getClub(slug) {
+  const client=await getClient();const {data,error}=await client.from("clubs")
+    .select("id,name,slug,logo_url,city,description,public_email,public_phone,website_url,active,tournaments(id,name,slug,status,published_at,starts_at,finished_at)")
+    .eq("slug",slug).maybeSingle();
+  if(error) throw new Error("Impossible de charger ce club.");return data??null;
+}
+
+export async function getClubAdministration() {
+  const client=await getClient();
+  const [{data:invitations,error:invitationError},{data:memberships,error:membershipError},{data:clubs,error:clubError}]=await Promise.all([
+    client.from("admin_invitations").select("id,email,status,club_id,created_at,expires_at,last_sent_at,sent_count,last_error,clubs(name)").order("created_at",{ascending:false}),
+    client.from("club_memberships").select("club_id,user_id,role,active,created_at,profiles(display_name),clubs(name)").order("created_at",{ascending:false}),
+    client.from("clubs").select("id,name").order("name"),
+  ]);
+  if(invitationError||membershipError||clubError) throw new Error("Administration des clubs inaccessible.");
+  return {invitations:invitations??[],memberships:memberships??[],clubs:clubs??[]};
+}
+
+export async function inviteAdminAction(action,fields={}) {
+  const client=await getClient();const {data,error}=await client.functions.invoke("invite-admin",{body:{action,...fields}});
+  if(error) throw new Error(data?.error||error.message||"Action impossible.");return data;
+}
+
+/** Server-paginated public player directory. */
+export async function listPlayersPage({page=1,pageSize=25,query="",title="",active="",clubId="",rated="",sort="rating_std"}={}) {
+  const client=await getClient();
+  const allowedSort=["rating_std","rating_rapid","rating_blitz","name"];
+  let request=client.from("players").select("id,name,fide_id,federation,fide_title,other_titles,fide_active,club,club_id,rating_std,rating_rapid,rating_blitz,updated_at,clubs(name)",{count:"exact"}).is("merged_into",null);
+  const term=query.trim();
+  if(term) request=/^\d+$/.test(term)?request.eq("fide_id",Number(term)):request.or(`name.ilike.%${term.replaceAll(",","")}%,club.ilike.%${term.replaceAll(",","")}%`);
+  if(title) request=request.eq("fide_title",title);
+  if(active!=="") request=request.eq("fide_active",active==="true");
+  if(clubId) request=request.eq("club_id",clubId);
+  if(rated==="rated") request=request.or("rating_std.gt.0,rating_rapid.gt.0,rating_blitz.gt.0");
+  if(rated==="unrated") request=request.or("rating_std.is.null,rating_std.eq.0").or("rating_rapid.is.null,rating_rapid.eq.0").or("rating_blitz.is.null,rating_blitz.eq.0");
+  const order=allowedSort.includes(sort)?sort:"rating_std";
+  const from=(page-1)*pageSize; request=request.order(order,{ascending:order==="name",nullsFirst:false}).range(from,from+pageSize-1);
+  const {data,error,count}=await request; if(error) throw new Error("Impossible de charger l'annuaire des joueurs.");
+  return {players:data??[],count:count??0,page,pageSize};
+}
+
+export async function getPlayerProfile(identifier) {
+  const client=await getClient();
+  let request=client.from("players").select("id,name,fide_id,federation,fide_title,other_titles,fide_active,source_period,fide_synced_at,club,club_id,rating_std,rating_rapid,rating_blitz,updated_at,clubs(id,name),tournament_players(tournaments(id,slug,name,status,published_at,started_at,finished_at,cancelled_at,starts_at))").is("merged_into",null);
+  request=/^\d+$/.test(identifier)?request.eq("fide_id",Number(identifier)):request.eq("id",identifier);
+  const {data,error}=await request.maybeSingle(); if(error) throw new Error("Impossible de charger ce joueur."); return data??null;
+}
+
+/** Local fields only: never writes synchronized FIDE identity/rating fields. */
+export async function updatePlayerLocal(id,{clubId=null,club=null,localNotes=null}) {
+  const client=await getClient(); const {data,error}=await client.from("players").update({club_id:clubId||null,club:club?.trim()||null,local_notes:localNotes?.trim()||null}).eq("id",id).select("id,club,club_id");
+  if(error||!data?.length) throw new Error("Modification locale refusee."); return data[0];
 }
 
 /**
@@ -158,105 +224,36 @@ export async function createPlayer(fields) {
  * @param {{name: string, format: string, roundsPlanned: number, playerIds: string[], tiebreaks: string[]}} draft
  * @returns the created tournament row
  */
-export async function createTournament({ name, format, roundsPlanned, playerIds, tiebreaks }) {
-  const client = await getClient();
-  const { data: userData } = await client.auth.getUser();
-  const user = userData?.user;
-  if (!user) {
-    throw new Error("Connectez-vous pour creer un tournoi.");
-  }
-
-  // Checked before writing anything: the same rule is enforced by a CHECK
-  // constraint on the column, this only turns it into a readable message.
+export async function createTournament({
+  name, description, startsAt, city, venueName, venueAddress, organizerName,
+  publicContactEmail, registrationUrl, posterUrl, format, cadence,
+  timeControlText, rankingType, fideRated, maxPlayers, roundsPlanned,
+  playerIds, tiebreaks, publishNow = false, requestId = crypto.randomUUID(),
+}) {
   const tiebreakCheck = validateTiebreakSelection(tiebreaks);
-  if (!tiebreakCheck.ok) {
-    throw new Error(tiebreakCheck.errors.join(" "));
-  }
-
-  // Built before the first write on purpose: generateSchedule rejects an
-  // invalid field by throwing, and an exception raised after the tournament
-  // row exists would escape the rollback below and strand a ghost draft.
+  if (!tiebreakCheck.ok) throw new Error(tiebreakCheck.errors.join(" "));
   const schedule = isRoundRobin(format)
     ? generateSchedule(playerIds, { doubled: format === "double_round_robin" })
     : null;
-
-  const { data: tournament, error } = await client
-    .from("tournaments")
-    .insert({
-      name: name.trim(),
-      format,
-      // For circle formats the schedule decides, not the caller: browser-side
-      // validation is a convenience, so trusting roundsPlanned here would let
-      // a tournament advertise 3 rounds while 9 are actually written.
-      rounds_planned: schedule ? schedule.length : roundsPlanned,
-      status: "draft",
-      created_by: user.id,
+  const client = await getClient();
+  const { data, error } = await client.rpc("create_tournament_with_players", {
+    request_id: requestId,
+    tournament_data: {
+      name: name.trim(), description, starts_at: startsAt, city,
+      venue_name: venueName, venue_address: venueAddress,
+      organizer_name: organizerName, public_contact_email: publicContactEmail,
+      registration_url: registrationUrl, poster_url: posterUrl, format,
+      rating_type: cadence, time_control_text: timeControlText,
+      ranking_type: rankingType, fide_rated: fideRated,
+      max_players: maxPlayers, rounds_planned: schedule?.length ?? roundsPlanned,
       tiebreaks,
-    })
-    .select()
-    .single();
-  if (error) {
-    throw new Error("La creation du tournoi a echoue (droits insuffisants ?).");
-  }
-
-  // Rolls the whole creation back; rounds and pairings go with the
-  // tournament through ON DELETE CASCADE.
-  const abort = async (message) => {
-    // An admin has no real DELETE on tournaments any more: rolling back a
-    // half-created tournament marks it deleted instead, which hides it from
-    // everyone. A super_admin clears it from the trash.
-    const { error: cleanupError } = await client.rpc("soft_delete_tournament", {
-      t_id: tournament.id,
-    });
-    throw new Error(
-      cleanupError
-        ? `${message} Le brouillon n'a pas pu etre supprime : retrouvez-le sur ` +
-          "la page d'accueil pour le supprimer ou reessayer."
-        : `${message} Le tournoi n'a pas ete cree.`
-    );
-  };
-
-  const rows = playerIds.map((playerId) => ({
-    tournament_id: tournament.id,
-    player_id: playerId,
-  }));
-  const { error: tpError } = await client.from("tournament_players").insert(rows);
-  if (tpError) {
-    await abort("L'inscription des joueurs a echoue.");
-  }
-
-  // Round-robin formats are fully determined by the field, so the schedule
-  // built above is written now. Swiss pairings depend on results and are
-  // drawn round by round instead (src/swiss.js, Phase 4).
-  if (schedule) {
-    const { data: rounds, error: roundsError } = await client
-      .from("rounds")
-      .insert(schedule.map((_, index) => ({
-        tournament_id: tournament.id,
-        number: index + 1,
-      })))
-      .select("id, number");
-    if (roundsError) {
-      await abort("La generation du calendrier a echoue.");
-    }
-
-    const roundIdByNumber = new Map(rounds.map((r) => [r.number, r.id]));
-    const pairingRows = schedule.flatMap((round, index) =>
-      round.map((pairing, board) => ({
-        round_id: roundIdByNumber.get(index + 1),
-        white_player_id: pairing.white,
-        black_player_id: pairing.black,
-        result: pairing.result,
-        board: board + 1,
-      }))
-    );
-    const { error: pairingsError } = await client.from("pairings").insert(pairingRows);
-    if (pairingsError) {
-      await abort("L'enregistrement des appariements a echoue.");
-    }
-  }
-
-  return tournament;
+    },
+    player_ids: playerIds,
+    schedule,
+    publish_now: publishNow,
+  });
+  if (error) throw new Error(editErrorMessage(error, "La creation transactionnelle du tournoi a echoue."));
+  return data;
 }
 
 /**
@@ -268,7 +265,7 @@ export async function listTournaments() {
   const client = await getClient();
   const { data, error } = await client
     .from("tournaments")
-    .select("id, name, slug, format, rounds_planned, status, created_at, published_at, started_at, finished_at, cancelled_at, starts_at, city, tournament_players(count)")
+    .select("id, name, slug, format, rounds_planned, status, created_by, created_at, updated_at, last_activity_at, published_at, started_at, finished_at, cancelled_at, starts_at, ends_at, city, venue_name, organizer_name, rating_type, tournament_players(count), registrations:tournament_players(players(club))")
     // RLS hides deleted tournaments from everyone but a super_admin, who
     // would otherwise see them mixed into the public listings.
     .is("deleted_at", null)
@@ -423,6 +420,20 @@ export async function finishTournament(id) {
   return callTransition("finish_tournament", { t_id: id }, "La cloture a echoue.");
 }
 
+/** Validates a complete round and atomically releases the next calendar round. */
+export async function validateRound(roundId) {
+  return callTransition("validate_round", { r_id: roundId }, "La validation de la ronde a echoue.");
+}
+
+/** Exceptional super-admin operation; rollback removes all later rounds. */
+export async function reopenRound(roundId, reason, rollbackFollowing = false) {
+  return callTransition(
+    "reopen_round",
+    { r_id: roundId, reason, rollback_following: rollbackFollowing },
+    "La reouverture de la ronde a echoue."
+  );
+}
+
 /** Cancels a tournament, with an optional reason shown on its page. */
 export async function cancelTournament(id, reason) {
   return callTransition(
@@ -543,37 +554,13 @@ export async function setPairingResult(pairingId, result) {
  */
 export async function createRound({ tournamentId, number, pairings }) {
   const client = await getClient();
-  const { data: round, error } = await client
-    .from("rounds")
-    .insert({ tournament_id: tournamentId, number })
-    .select("id, number")
-    .single();
+  const { data: round, error } = await client.rpc("create_swiss_round", {
+    t_id: tournamentId,
+    round_number: number,
+    pairing_rows: pairings,
+  });
   if (error) {
     throw new Error(editErrorMessage(error, "La creation de la ronde a echoue."));
-  }
-
-  const rows = pairings.map((pairing, index) => ({
-    round_id: round.id,
-    white_player_id: pairing.white,
-    black_player_id: pairing.black,
-    result: pairing.result ?? null,
-    board: index + 1,
-  }));
-  const { error: pairingsError } = await client.from("pairings").insert(rows);
-  if (pairingsError) {
-    const { error: cleanupError } = await client
-      .from("rounds")
-      .delete()
-      .eq("id", round.id)
-      .select("id");
-    throw new Error(
-      editErrorMessage(
-        pairingsError,
-        cleanupError
-          ? "Les appariements n'ont pas pu etre enregistres, et la ronde vide n'a pas pu etre retiree."
-          : "Les appariements n'ont pas pu etre enregistres : la ronde n'a pas ete creee."
-      )
-    );
   }
   return round;
 }
@@ -604,7 +591,7 @@ export async function archiveTournament(id) {
  *
  * @returns {Promise<() => void>} unsubscribe
  */
-export async function onPairingsChange(callback) {
+export async function onPairingsChange(callback, statusCallback = () => {}) {
   const client = await getClient();
   const channel = client
     .channel("pairings-live")
@@ -613,7 +600,7 @@ export async function onPairingsChange(callback) {
       { event: "*", schema: "public", table: "pairings" },
       (payload) => callback(payload)
     )
-    .subscribe();
+    .subscribe((status) => statusCallback(status));
   return () => client.removeChannel(channel);
 }
 
@@ -625,18 +612,20 @@ export async function onPairingsChange(callback) {
  */
 export async function getTournamentResults(id) {
   const client = await getClient();
-  const { data, error } = await client
+  let query = client
     .from("tournaments")
     .select(
-      "id, name, slug, format, rounds_planned, status, created_at, created_by, tiebreaks, " +
+      "id, name, slug, format, rounds_planned, status, created_at, created_by, club_id, tiebreaks, " +
       "published_at, started_at, finished_at, cancelled_at, cancellation_reason, " +
-      "starts_at, ends_at, timezone, venue_name, city, organizer_name, description, " +
-      "tournament_players(withdrawn, players(id, name)), " +
-      "rounds(number, pairings(id, board, white_player_id, black_player_id, result))"
+      "starts_at, ends_at, timezone, venue_name, venue_address, city, organizer_name, description, " +
+      "public_contact_email, registration_url, poster_url, rating_type, updated_at, last_activity_at, " +
+      "tournament_players(withdrawn, players(id, name, title, fide_id, federation, club, rating_std, rating_rapid, rating_blitz)), " +
+      "rounds(id, number, released_at, validated_at, validated_by, pairings(id, board, white_player_id, black_player_id, result))"
     )
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+    .is("deleted_at", null);
+  const isUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
+  query = isUuid ? query.eq("id", id) : query.eq("slug", id);
+  const { data, error } = await query.maybeSingle();
   if (error) {
     throw new Error("Impossible de charger le classement de ce tournoi.");
   }
@@ -649,15 +638,31 @@ export async function getTournamentResults(id) {
     .map((entry) => ({
       id: entry.players.id,
       name: entry.players.name,
+      title: entry.players.title,
+      fide_id: entry.players.fide_id,
+      federation: entry.players.federation,
+      club: entry.players.club,
+      rating_std: entry.players.rating_std,
+      rating_rapid: entry.players.rating_rapid,
+      rating_blitz: entry.players.rating_blitz,
       withdrawn: entry.withdrawn === true,
     }));
 
   // PostgREST does not promise an order on embedded rows, so both levels are
   // sorted here: the cumulative tie-break reads rounds in sequence.
   const rounds = [...(data.rounds ?? [])]
+    .filter(
+      (round) =>
+        round.released_at ||
+        (data.status === "draft" && round.number === 1)
+    )
     .sort((a, b) => a.number - b.number)
     .map((round) => ({
+      id: round.id,
       number: round.number,
+      released_at: round.released_at,
+      validated_at: round.validated_at,
+      validated_by: round.validated_by,
       pairings: [...(round.pairings ?? [])]
         .sort((a, b) => (a.board ?? 0) - (b.board ?? 0))
         .map((pairing) => ({

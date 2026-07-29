@@ -7,6 +7,7 @@
 import { isRoundComplete } from "./swiss.js";
 import { isRoundRobin } from "./tournament-validation.js";
 import { GAME_RESULTS } from "./tournament-edit.js";
+import { lifecycleState } from "./tournament-lifecycle.js";
 
 export { GAME_RESULTS };
 
@@ -37,11 +38,36 @@ export function progressLabel(round) {
 }
 
 /**
+ * Selects the round a tournament page should open without looking at the
+ * DOM or URL. `requestedRound` has priority when it exists in the visible
+ * round list.
+ */
+export function selectDefaultRound(tournament, rounds, requestedRound = null) {
+  const available = rounds ?? [];
+  if (available.length === 0) return null;
+
+  if (Number.isInteger(requestedRound)) {
+    const requested = available.find((round) => round.number === requestedRound);
+    if (requested) return requested.number;
+  }
+
+  const state = lifecycleState(tournament);
+  if (state === "draft" || state === "upcoming") return available[0].number;
+  if (state === "ongoing") {
+    return (
+      available.find((round) => round.released_at && !round.validated_at)?.number ??
+      available[available.length - 1].number
+    );
+  }
+  return available[available.length - 1].number;
+}
+
+/**
  * Whether results may be entered on this round at all.
  * Entry belongs to a running tournament: a draft has not started, and an
  * archive is closed.
  */
-export function canEnterResults(tournament) {
+export function canEnterResults(tournament, round = null) {
   if (!tournament) return { ok: false, reason: "Tournoi introuvable." };
   if (tournament.status === "draft") {
     return { ok: false, reason: "Le tournoi n'a pas encore démarré." };
@@ -51,6 +77,12 @@ export function canEnterResults(tournament) {
   }
   if (tournament.status !== "ongoing") {
     return { ok: false, reason: "La saisie est réservée aux tournois en cours." };
+  }
+  if (round && !round.released_at) {
+    return { ok: false, reason: "Cette ronde n'est pas encore débloquée." };
+  }
+  if (round?.validated_at) {
+    return { ok: false, reason: "Cette ronde est validée : ses résultats sont verrouillés." };
   }
   return { ok: true, reason: null };
 }
@@ -92,6 +124,9 @@ export function nextRoundAction(tournament, rounds) {
   const last = played[played.length - 1];
   // Nothing to do until the round in progress is finished.
   if (played.length > 0 && !isRoundComplete(last)) return null;
+  // `undefined` keeps compatibility with historical in-memory states; rows
+  // loaded from the new schema always carry either null or a timestamp.
+  if (played.length > 0 && last.validated_at === null) return null;
 
   const planned = tournament.rounds_planned ?? 0;
   if (played.length >= planned) return "archive";
