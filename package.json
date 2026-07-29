@@ -6,6 +6,10 @@
   "description": "Plateforme de gestion de tournois d'echecs - Ivoire Chess",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "test:rls": "bash scripts/run-rls-checks.sh"
+    "test:rls": "bash scripts/run-rls-checks.sh",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1"
   }
 }

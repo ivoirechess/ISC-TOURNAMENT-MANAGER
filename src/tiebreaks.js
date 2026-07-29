@@ -469,3 +469,23 @@ export function computeStandings(state, selectedTiebreaks) {
     return row;
   });
 }
+
+/**
+ * Standings officially published after a round. Only validated rounds up to
+ * the requested number are copied into the calculation; this deliberately
+ * excludes entered-but-unvalidated games and pre-created future byes.
+ */
+export function computeStandingsAfterRound(state, roundNumber, selectedTiebreaks) {
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) {
+    throw new Error("Le numero de ronde doit etre un entier positif.");
+  }
+  return computeStandings(
+    {
+      players: state?.players ?? [],
+      rounds: (state?.rounds ?? []).filter(
+        (round) => round.number <= roundNumber && Boolean(round.validated_at)
+      ),
+    },
+    selectedTiebreaks
+  );
+}

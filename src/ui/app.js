@@ -10,15 +10,17 @@
 import { initAuth } from "./auth.js";
 import { initTournamentForm, openTournamentForm } from "./tournament-form.js";
 import { openHome } from "./home.js";
-import { openStandings } from "./standings.js";
 import { initTournamentEdit, openTournamentEdit } from "./tournament-edit.js";
 import { openTrash } from "./trash.js";
 import { openRounds, closeRounds } from "./rounds.js";
 import { openLifecycleActions } from "./lifecycle-actions.js";
-import { getCurrentRole, getTournamentResults, onAuthChange } from "../data.js";
+import { getCurrentClubIds, getCurrentRole, getCurrentUserId, getTournamentResults, onAuthChange } from "../data.js";
 import { isAdminRole } from "../roles.js";
-import { FORMATS } from "../tournament-validation.js";
-import { STATUS_LABELS } from "../tournament-list.js";
+import { activateTournamentTab, renderTournamentPage } from "./tournament-page.js";
+import { canShowOrganizerPanel, resolveTournamentTab, tournamentTabUrl } from "../tournament-page.js";
+import { openPlayer, openPlayers } from "./players.js";
+import { openClub, openClubs, openUserAdministration } from "./clubs.js";
+import {downloadExport,pairingsExport,resultSheetsExport,standingsExport,startingListExport} from "../tournament-exports.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -34,6 +36,8 @@ function safeDecode(segment) {
   }
 }
 
+async function copyText(value){if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(value);return}catch{/* permission denied: use the static-site fallback */}}const input=document.createElement("textarea");input.value=value;input.setAttribute("readonly","");input.style.position="fixed";input.style.opacity="0";document.body.append(input);input.select();document.execCommand("copy");input.remove()}
+
 const VIEWS = [
   "view-home",
   "view-new-tournament",
@@ -41,6 +45,11 @@ const VIEWS = [
   "view-tournament-edit",
   "view-standings",
   "view-trash",
+  "view-players",
+  "view-player",
+  "view-clubs",
+  "view-club",
+  "view-user-administration",
 ];
 
 function showView(id) {
@@ -52,8 +61,6 @@ function showView(id) {
 async function showTournament(id, options = {}) {
   showView("view-tournament");
   el("tournament-title").textContent = "Chargement…";
-  el("tournament-meta").textContent = "";
-  el("tournament-players").innerHTML = "";
   el("rounds-board").innerHTML = "";
   el("rounds-tabs").innerHTML = "";
   // Cleared here and not only by the module that fills them: a tournament
@@ -68,54 +75,50 @@ async function showTournament(id, options = {}) {
       return;
     }
     const { tournament } = payload;
-    el("tournament-title").textContent = tournament.name;
-    const formatLabel = FORMATS.find((f) => f.value === tournament.format)?.label ?? tournament.format;
-    const statusLabel = STATUS_LABELS[tournament.status] ?? tournament.status;
-    el("tournament-meta").textContent =
-      `Format ${formatLabel} · ${tournament.rounds_planned} rondes prévues · statut : ${statusLabel}`;
-    // Standings only make sense once play has started.
-    const standingsSlot = el("tournament-standings-link");
-    standingsSlot.innerHTML = "";
-    if (tournament.status === "ongoing" || tournament.status === "archived") {
-      const link = document.createElement("a");
-      link.className = "button-link";
-      link.href = `#/tournoi/${encodeURIComponent(tournament.id)}/classement`;
-      link.textContent = "Voir le classement";
-      standingsSlot.append(link);
-    }
+    renderTournamentPage(payload);
+    const identifier = tournament.slug || tournament.id;
 
     // Edit link for admins only — added to the DOM rather than hidden in
     // CSS. Ownership is still decided server-side: a non-owning admin who
     // follows the link gets a screen whose every write is refused.
     let role = null;
+    let userId = null;
+    let clubIds = [];
     try {
-      role = await getCurrentRole();
+      [role, userId, clubIds] = await Promise.all([getCurrentRole(), getCurrentUserId(), getCurrentClubIds()]);
     } catch {
       role = null;
     }
-    if (isAdminRole(role)) {
-      const editLink = document.createElement("a");
-      editLink.href = `#/tournoi/${encodeURIComponent(tournament.id)}/modifier`;
-      editLink.textContent = "Modifier ce tournoi";
-      standingsSlot.append(" ", editLink);
-    }
-
-    const list = el("tournament-players");
-    for (const player of payload.state.players) {
-      const item = document.createElement("li");
-      item.textContent = player.name;
-      list.append(item);
-    }
+    const organizer = canShowOrganizerPanel(tournament, role, userId, clubIds);
+    el("organizer-panel").hidden = !organizer;
+    el("tournament-edit-link").href = `#/tournoi/${encodeURIComponent(identifier)}/modifier`;
 
     // Life-cycle buttons (publish, start, cancel…). A transition changes the
     // tournament under our feet, so the module reloads this whole view
     // rather than patching the row it just moved; `focusRound` is how a
     // start lands on the round it has just drawn.
-    await openLifecycleActions(tournament, ({ focusRound } = {}) =>
-      showTournament(id, { focusRound })
-    );
+    if (organizer) await openLifecycleActions(tournament, ({ focusRound } = {}) => showTournament(identifier, { focusRound, tab: "pairings" }));
 
     await openRounds(payload, { focusRound: options.focusRound });
+    const tab = resolveTournamentTab(options.tab);
+    activateTournamentTab(identifier, tab, options.focusRound);
+    for (const button of el("tournament-tabs").querySelectorAll("button")) {
+      button.onclick = () => activateTournamentTab(identifier, button.dataset.tab, null);
+    }
+    el("copy-tournament-link").onclick = async () => {
+      const currentTab = el("tournament-tabs").querySelector("button.active")?.dataset.tab ?? "overview";
+      await copyText(new URL(tournamentTabUrl(identifier, currentTab, options.focusRound), location.href).href);
+      el("copy-tournament-link").textContent = "Lien copié";
+    };
+    el("share-tournament").onclick = async () => {
+      const currentTab = el("tournament-tabs").querySelector("button.active")?.dataset.tab ?? "overview";
+      const url = new URL(tournamentTabUrl(identifier, currentTab, options.focusRound), location.href).href;
+      if (navigator.share) await navigator.share({ title: tournament.name, url });
+      else {await copyText(url);el("share-tournament").textContent="Lien copié";}
+    };
+    el("refresh-tournament").onclick=()=>showTournament(identifier,{focusRound:options.focusRound,tab:el("tournament-tabs").querySelector("button.active")?.dataset.tab});
+    const exportAction=(id,factory)=>{el(id).onclick=()=>{try{downloadExport(factory(payload))}catch(error){el("tournament-actions-feedback").textContent=error.message}}};
+    exportAction("export-starting-list",startingListExport);exportAction("export-pairings",pairingsExport);exportAction("export-standings",standingsExport);exportAction("export-result-sheets",resultSheetsExport);
   } catch (err) {
     el("tournament-title").textContent = err.message;
   }
@@ -123,8 +126,9 @@ async function showTournament(id, options = {}) {
 
 async function route() {
   const hash = window.location.hash;
+  const routeHash = hash.split("?")[0];
   // Leaving the tournament view drops its realtime channel.
-  if (!/^#\/tournoi\/[^/]+$/.test(hash)) closeRounds();
+  if (!/^#\/tournoi\/[^/]+$/.test(routeHash)) closeRounds();
 
   if (hash === "#/nouveau-tournoi") {
     // Interface guard only — RLS is the real protection. Rely on the role
@@ -154,7 +158,17 @@ async function route() {
     return;
   }
 
-  const editMatch = hash.match(/^#\/tournoi\/(.+)\/modifier$/);
+  if (routeHash === "#/joueurs") { showView("view-players"); await openPlayers(); return; }
+  const playerMatch=routeHash.match(/^#\/joueur\/([^/]+)$/);
+  if(playerMatch){showView("view-player");await openPlayer(safeDecode(playerMatch[1]));return;}
+  if(routeHash==="#/clubs"){showView("view-clubs");await openClubs();return;}
+  const clubMatch=routeHash.match(/^#\/club\/([^/]+)$/);
+  if(clubMatch){showView("view-club");await openClub(safeDecode(clubMatch[1]));return;}
+  if(routeHash==="#/administration/utilisateurs"){
+    showView("view-user-administration");if(!(await openUserAdministration()))window.location.hash="#/";return;
+  }
+
+  const editMatch = routeHash.match(/^#\/tournoi\/(.+)\/modifier$/);
   if (editMatch) {
     const id = safeDecode(editMatch[1]);
     showView("view-tournament-edit");
@@ -165,16 +179,20 @@ async function route() {
     return;
   }
 
-  const standingsMatch = hash.match(/^#\/tournoi\/(.+)\/classement$/);
+  const standingsMatch = routeHash.match(/^#\/tournoi\/(.+)\/classement$/);
   if (standingsMatch) {
-    showView("view-standings");
-    await openStandings(safeDecode(standingsMatch[1]));
+    await showTournament(safeDecode(standingsMatch[1]), { tab: "standings" });
     return;
   }
 
-  const tournamentMatch = hash.match(/^#\/tournoi\/(.+)$/);
+  const tournamentMatch = routeHash.match(/^#\/tournoi\/(.+)$/);
   if (tournamentMatch) {
-    await showTournament(safeDecode(tournamentMatch[1]));
+    const query = new URLSearchParams(hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "");
+    const parsedRound = Number.parseInt(query.get("ronde") ?? "", 10);
+    await showTournament(safeDecode(tournamentMatch[1]), {
+      focusRound: Number.isInteger(parsedRound) && parsedRound > 0 ? parsedRound : null,
+      tab: resolveTournamentTab(query.get("onglet")),
+    });
     return;
   }
 

@@ -8,15 +8,18 @@
 import {
   getTournamentResults,
   getCurrentRole,
+  getCurrentUserId,
   setPairingResult,
   clearPairingResult,
   createRound,
   archiveTournament,
+  validateRound,
   onPairingsChange,
 } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { pairRound } from "../swiss.js";
 import { RESULT_LABELS } from "../tournament-edit.js";
+import { computeStandingsAfterRound } from "../tiebreaks.js";
 import {
   ENTRY_CHOICES,
   canEnterResults,
@@ -25,9 +28,11 @@ import {
   nextRoundAction,
   nextRoundLabel,
   progressLabel,
+  selectDefaultRound,
   resultClickAction,
   warningsConfirmation,
 } from "../round-entry.js";
+import { canShowOrganizerPanel } from "../tournament-page.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -37,6 +42,7 @@ let current = null; // { tournament, state }
 let canEdit = false;
 let visibleRound = 0; // index into current.state.rounds
 let unsubscribe = null;
+let unplayedOnly = false;
 
 function setFeedback(message, isError) {
   const node = el("rounds-feedback");
@@ -57,16 +63,23 @@ function renderRoundTabs() {
     const tab = document.createElement("button");
     tab.type = "button";
     tab.className = index === visibleRound ? "round-tab active" : "round-tab";
-    tab.textContent = `Ronde ${round.number ?? index + 1}`;
+    const status = round.validated_at
+      ? "Validée"
+      : round.pairings.every((pairing) => pairing.result != null)
+        ? "À valider"
+        : "En cours";
+    tab.textContent = `Ronde ${round.number ?? index + 1} — ${status}`;
+    tab.setAttribute("aria-label", `Ronde ${round.number ?? index + 1}, ${status}`);
     tab.addEventListener("click", () => {
       visibleRound = index;
+      updateRoundUrl(round.number);
       renderRound();
     });
     box.append(tab);
   });
 }
 
-function renderEntryButtons(pairing, row) {
+function renderEntryButtons(pairing) {
   const group = document.createElement("div");
   group.className = "entry-group";
 
@@ -84,7 +97,7 @@ function renderEntryButtons(pairing, row) {
     group.append(button);
   }
 
-  row.append(group);
+  return group;
 }
 
 function renderRound() {
@@ -103,9 +116,20 @@ function renderRound() {
     return;
   }
 
-  el("rounds-progress").textContent = progressLabel(round);
+  el("rounds-progress").textContent =
+    current.tournament.status === "draft"
+      ? "Calendrier préparé — démarrez le tournoi pour saisir les résultats."
+      : progressLabel(round);
+
+  const heading = document.createElement("div");
+  heading.className = "pairing-row pairing-head";
+  for (const label of ["Table", "Blancs", "Résultat", "Noirs"]) {
+    const cell = document.createElement("strong"); cell.textContent = label; heading.append(cell);
+  }
+  box.append(heading);
 
   for (const pairing of round.pairings) {
+    if (unplayedOnly && (pairing.black === null || pairing.result != null)) continue;
     const row = document.createElement("div");
     row.className = "pairing-row";
 
@@ -113,40 +137,52 @@ function renderRound() {
     board.className = "board-number";
     board.textContent = String(pairing.board ?? "");
 
-    const names = document.createElement("span");
-    names.className = "pairing-names";
-    names.textContent =
-      pairing.black === null
-        ? `${playerName(pairing.white)} — exempt`
-        : `${playerName(pairing.white)} — ${playerName(pairing.black)}`;
-
-    row.append(board, names);
+    const white = document.createElement("span"); white.className = "pairing-player"; white.textContent = playerName(pairing.white);
+    const black = document.createElement("span"); black.className = "pairing-player"; black.textContent = pairing.black === null ? "Exempt" : playerName(pairing.black);
+    let resultNode;
 
     if (!isEditablePairing(pairing)) {
       // A bye is shown but never entered: it is worth its point already.
-      const fixed = document.createElement("span");
-      fixed.className = "muted";
-      fixed.textContent = RESULT_LABELS.bye;
-      row.append(fixed);
-    } else if (canEdit) {
-      renderEntryButtons(pairing, row);
+      resultNode = document.createElement("span"); resultNode.className = "muted"; resultNode.textContent = RESULT_LABELS.bye;
+    } else if (canEdit && canEnterResults(current.tournament, round).ok) {
+      resultNode = renderEntryButtons(pairing);
     } else {
-      const shown = document.createElement("span");
-      shown.className = "result-shown";
-      shown.textContent = pairing.result ? RESULT_LABELS[pairing.result] ?? pairing.result : "—";
-      row.append(shown);
+      resultNode = document.createElement("span"); resultNode.className = "result-shown";
+      resultNode.textContent = pairing.result ? RESULT_LABELS[pairing.result] ?? pairing.result : "—";
     }
+    row.append(board, white, resultNode, black);
 
     box.append(row);
   }
 
+  if (round.validated_at) renderStandings(round, box);
+
   renderNextAction();
+}
+
+function updateRoundUrl(roundNumber) {
+  const identifier = current.tournament.slug || current.tournament.id;
+  const hash = `#/tournoi/${encodeURIComponent(identifier)}?onglet=pairings&ronde=${roundNumber}`;
+  // replaceState changes the shareable URL without firing hashchange, so the
+  // already-loaded tournament and its Realtime subscription stay in place.
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
 }
 
 function renderNextAction() {
   const slot = el("rounds-next");
   slot.innerHTML = "";
   if (!canEdit) return;
+
+  const round = current.state.rounds[visibleRound];
+  if (round && !round.validated_at && roundProgressComplete(round)) {
+    const validate = document.createElement("button");
+    validate.type = "button";
+    validate.className = "primary";
+    validate.textContent = "Valider la ronde";
+    validate.addEventListener("click", () => onValidateRound(round, validate));
+    slot.append(validate);
+    return;
+  }
 
   const action = nextRoundAction(current.tournament, current.state.rounds);
   const label = nextRoundLabel(action);
@@ -162,11 +198,46 @@ function renderNextAction() {
   slot.append(button);
 }
 
+function roundProgressComplete(round) {
+  return round.pairings.length > 0 && round.pairings.every((pairing) => pairing.result != null);
+}
+
+function renderStandings(round, box) {
+  const title = document.createElement("h3");
+  title.textContent = `Classement après la ronde ${round.number}`;
+  const list = document.createElement("ol");
+  for (const row of computeStandingsAfterRound(
+    current.state,
+    round.number,
+    current.tournament.tiebreaks
+  )) {
+    const item = document.createElement("li");
+    item.textContent = `${row.name} — ${row.points} pt${row.points > 1 ? "s" : ""}`;
+    list.append(item);
+  }
+  box.append(title, list);
+}
+
+async function onValidateRound(round, button) {
+  button.disabled = true;
+  try {
+    await validateRound(round.id);
+    await reload();
+    visibleRound = current.state.rounds.findIndex((item) => item.id === round.id);
+    renderRound();
+    setFeedback(`Ronde ${round.number} validée.`, false);
+  } catch (err) {
+    setFeedback(err.message, true);
+    button.disabled = false;
+  }
+}
+
 async function onEntryClick(pairing, choice, group) {
   const action = resultClickAction(pairing, choice);
   if (!action) return;
 
-  const allowed = canEnterResults(current.tournament);
+  const round = current.state.rounds[visibleRound];
+  const allowed = canEnterResults(current.tournament, round);
   if (!allowed.ok) {
     setFeedback(allowed.reason, true);
     return;
@@ -268,19 +339,24 @@ export function closeRounds() {
 export async function openRounds(payload, { focusRound = null } = {}) {
   closeRounds();
   current = payload;
-  const wanted = current.state.rounds.findIndex((round) => round.number === focusRound);
-  visibleRound = wanted >= 0 ? wanted : Math.max(0, current.state.rounds.length - 1);
+  const selected = selectDefaultRound(current.tournament, current.state.rounds, focusRound);
+  visibleRound = selected === null
+    ? 0
+    : current.state.rounds.findIndex((round) => round.number === selected);
   setFeedback("", false);
+  unplayedOnly=false;el("unplayed-only").checked=false;el("unplayed-only").onchange=event=>{unplayedOnly=event.target.checked;renderRound()};
+  const realtime=el("realtime-state");realtime.textContent="Connexion Realtime…";realtime.className="connection-state";
 
   let role = null;
+  let userId = null;
   try {
-    role = await getCurrentRole();
+    [role, userId] = await Promise.all([getCurrentRole(), getCurrentUserId()]);
   } catch {
     role = null;
   }
   // Interface guard only: RLS refuses the writes of anyone else, whatever
   // this view chooses to show.
-  canEdit = isAdminRole(role) && canEnterResults(current.tournament).ok;
+  canEdit = isAdminRole(role) && canShowOrganizerPanel(current.tournament, role, userId) && canEnterResults(current.tournament).ok;
 
   renderRound();
 
@@ -290,9 +366,10 @@ export async function openRounds(payload, { focusRound = null } = {}) {
       // Spectators get the result without touching the page.
       await reload();
       renderRound();
-    });
+    },status=>{const connected=status==="SUBSCRIBED";realtime.textContent=connected?"Realtime connecté":"Realtime indisponible";realtime.className=`connection-state ${connected?"connected":"unavailable"}`;});
   } catch {
     // Realtime unavailable (not enabled on the project, or offline): the
     // view stays correct, it just no longer updates by itself.
+    realtime.textContent="Realtime indisponible";realtime.className="connection-state unavailable";
   }
 }

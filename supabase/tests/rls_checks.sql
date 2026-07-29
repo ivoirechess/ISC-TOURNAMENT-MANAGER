@@ -33,9 +33,9 @@ insert into public.tournaments(id, name, format, rounds_planned, status, created
    '11111111-1111-1111-1111-111111111111');
 insert into public.tournament_players(tournament_id, player_id) values
   ('cccccccc-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001');
-insert into public.rounds(id, tournament_id, number) values
-  ('dddddddd-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000001', 1),
-  ('dddddddd-0000-0000-0000-000000000002', 'cccccccc-0000-0000-0000-000000000002', 1);
+insert into public.rounds(id, tournament_id, number, released_at) values
+  ('dddddddd-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000001', 1, now()),
+  ('dddddddd-0000-0000-0000-000000000002', 'cccccccc-0000-0000-0000-000000000002', 1, now());
 insert into public.pairings(id, round_id, white_player_id, black_player_id, result, board) values
   ('eeeeeeee-0000-0000-0000-000000000001', 'dddddddd-0000-0000-0000-000000000001',
    'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', '1-0', 1),
@@ -218,7 +218,7 @@ select pg_temp.check_refused('un anonyme ne peut pas appeler les transitions',
   $$select public.publish_tournament('cccccccc-0000-0000-0000-0000000000c0')$$);
 reset role;
 insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
-values ('cccccccc-0000-0000-0000-0000000000c1', 'Cycle de vie', 'swiss', 3, 'draft',
+values ('cccccccc-0000-0000-0000-0000000000c1', 'Cycle de vie', 'swiss', 1, 'draft',
         '11111111-1111-1111-1111-111111111111', array['buchholz', 'wins']);
 insert into public.tournament_players(tournament_id, player_id) values
   ('cccccccc-0000-0000-0000-0000000000c1', 'aaaaaaaa-0000-0000-0000-000000000001'),
@@ -285,6 +285,11 @@ select pg_temp.check_refused('un second demarrage est refuse',
 select pg_temp.check_refused('un tournoi demarre ne se depublie pas',
   $$select public.unpublish_tournament('cccccccc-0000-0000-0000-0000000000c1')$$);
 
+select pg_temp.check_refused('cloture refusee avant validation de la derniere ronde',
+  $$select public.finish_tournament('cccccccc-0000-0000-0000-0000000000c1')$$);
+update public.pairings set result='1-0'
+ where round_id=(select id from public.rounds where tournament_id='cccccccc-0000-0000-0000-0000000000c1' and number=1);
+select public.validate_round((select id from public.rounds where tournament_id='cccccccc-0000-0000-0000-0000000000c1' and number=1));
 select public.finish_tournament('cccccccc-0000-0000-0000-0000000000c1');
 reset role; reset test.uid;
 select pg_temp.check_equal('la cloture archive et date',
@@ -381,16 +386,19 @@ select pg_temp.check_equal('les slugs restent uniques entre tournois vivants',
 -- count and changes only the tournament lifecycle fields.
 insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
 values ('cccccccc-0000-0000-0000-0000000000c5', 'Toutes rondes prepare',
-        'round_robin', 1, 'draft', '11111111-1111-1111-1111-111111111111',
+        'round_robin', 2, 'draft', '11111111-1111-1111-1111-111111111111',
         array['buchholz', 'wins']);
 insert into public.tournament_players(tournament_id, player_id) values
   ('cccccccc-0000-0000-0000-0000000000c5', 'aaaaaaaa-0000-0000-0000-000000000001'),
   ('cccccccc-0000-0000-0000-0000000000c5', 'aaaaaaaa-0000-0000-0000-000000000002');
 insert into public.rounds(id, tournament_id, number) values
-  ('dddddddd-0000-0000-0000-0000000000c5', 'cccccccc-0000-0000-0000-0000000000c5', 1);
+  ('dddddddd-0000-0000-0000-0000000000c5', 'cccccccc-0000-0000-0000-0000000000c5', 1),
+  ('dddddddd-0000-0000-0000-0000000000c6', 'cccccccc-0000-0000-0000-0000000000c5', 2);
 insert into public.pairings(id, round_id, white_player_id, black_player_id, result, board) values
   ('eeeeeeee-0000-0000-0000-0000000000c5', 'dddddddd-0000-0000-0000-0000000000c5',
-   'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', null, 1);
+   'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', null, 1),
+  ('eeeeeeee-0000-0000-0000-0000000000c6', 'dddddddd-0000-0000-0000-0000000000c6',
+   'aaaaaaaa-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000001', null, 1);
 
 set role authenticated;
 set test.uid = '11111111-1111-1111-1111-111111111111';
@@ -398,8 +406,22 @@ select pg_temp.check_refused('aucun resultat avant le demarrage toutes rondes',
   $$update public.pairings set result = '1-0'
       where id = 'eeeeeeee-0000-0000-0000-0000000000c5'$$);
 select public.start_tournament('cccccccc-0000-0000-0000-0000000000c5');
+select pg_temp.check_refused('validation avec resultat manquant refusee',
+  $$select public.validate_round('dddddddd-0000-0000-0000-0000000000c5')$$);
+reset role; reset test.uid;
+set role anon;
+select pg_temp.check_equal('ronde suivante invisible avant validation',
+  (select count(*) from public.rounds where tournament_id='cccccccc-0000-0000-0000-0000000000c5'), 1);
+select pg_temp.check_equal('appariement futur invisible avant validation',
+  (select count(*) from public.pairings where id='eeeeeeee-0000-0000-0000-0000000000c6'), 0);
+reset role;
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
 update public.pairings set result = '1-0'
  where id = 'eeeeeeee-0000-0000-0000-0000000000c5';
+select public.validate_round('dddddddd-0000-0000-0000-0000000000c5');
+select pg_temp.check_refused('resultat verrouille apres validation',
+  $$update public.pairings set result='0-1' where id='eeeeeeee-0000-0000-0000-0000000000c5'$$);
 reset role; reset test.uid;
 
 select pg_temp.check_equal('toutes rondes demarre et date sans regenerer',
@@ -408,10 +430,141 @@ select pg_temp.check_equal('toutes rondes demarre et date sans regenerer',
       and status = 'ongoing' and started_at is not null), 1);
 select pg_temp.check_equal('le calendrier toutes rondes reste intact',
   (select count(*) from public.rounds
-    where tournament_id = 'cccccccc-0000-0000-0000-0000000000c5'), 1);
+    where tournament_id = 'cccccccc-0000-0000-0000-0000000000c5'), 2);
 select pg_temp.check_equal('la saisie devient possible apres demarrage',
   (select count(*) from public.pairings
     where id = 'eeeeeeee-0000-0000-0000-0000000000c5' and result = '1-0'), 1);
+select pg_temp.check_equal('validation toutes rondes journalisee sur la ronde',
+  (select count(*) from public.rounds where id='dddddddd-0000-0000-0000-0000000000c5'
+    and validated_at is not null and validated_by='11111111-1111-1111-1111-111111111111'), 1);
+set role anon;
+select pg_temp.check_equal('ronde suivante visible apres validation',
+  (select count(*) from public.rounds where tournament_id='cccccccc-0000-0000-0000-0000000000c5'), 2);
+reset role;
+select pg_temp.check_equal('resultats verrouilles apres validation',
+  (select count(*) from public.pairings where id='eeeeeeee-0000-0000-0000-0000000000c5' and result='1-0'), 1);
+
+-- --------------------------------------------------------------------------
+-- Transactional tournament creation
+-- --------------------------------------------------------------------------
+set role anon;
+select pg_temp.check_refused('creation transactionnelle interdite au public',
+  $$select public.create_tournament_with_players(
+    '90000000-0000-0000-0000-000000000001','{}',array[]::uuid[],null,false)$$);
+reset role;
+set role authenticated;
+set test.uid='11111111-1111-1111-1111-111111111111';
+select public.create_tournament_with_players(
+  '90000000-0000-0000-0000-000000000001',
+  '{"name":"Creation atomique suisse","format":"swiss","rounds_planned":1,"rating_type":"rapid","ranking_type":"elo","fide_rated":false,"tiebreaks":["buchholz","wins"]}',
+  array['aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000002']::uuid[],null,false);
+-- Same idempotency key returns the original row rather than creating twice.
+select public.create_tournament_with_players(
+  '90000000-0000-0000-0000-000000000001',
+  '{"name":"Ignore lors du retry","format":"swiss","rounds_planned":1,"tiebreaks":["buchholz","wins"]}',
+  array['aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000002']::uuid[],null,false);
+reset role; reset test.uid;
+select pg_temp.check_equal('retry idempotent : un seul tournoi',
+  (select count(*) from public.tournaments where name='Creation atomique suisse'),1);
+select pg_temp.check_equal('suisse cree participants sans ronde',
+  (select count(*) from public.tournament_players tp join public.tournaments t on t.id=tp.tournament_id where t.name='Creation atomique suisse'),2);
+select pg_temp.check_equal('aucune ronde suisse avant demarrage',
+  (select count(*) from public.rounds r join public.tournaments t on t.id=r.tournament_id where t.name='Creation atomique suisse'),0);
+
+set role authenticated;
+set test.uid='11111111-1111-1111-1111-111111111111';
+select pg_temp.check_refused('calendrier invalide annule toute la transaction',
+  $$select public.create_tournament_with_players(
+    '90000000-0000-0000-0000-000000000002',
+    '{"name":"Doit rollback","format":"round_robin","rounds_planned":1,"tiebreaks":["buchholz","wins"]}',
+    array['aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000002']::uuid[],
+    '[[{"white":"aaaaaaaa-0000-0000-0000-000000000001","black":"aaaaaaaa-0000-0000-0000-000000000002","result":"1-0"}]]',false)$$);
+reset role; reset test.uid;
+select pg_temp.check_equal('echec : zero tournoi partiel',(select count(*) from public.tournaments where name='Doit rollback'),0);
+select pg_temp.check_equal('echec : zero cle idempotente partielle',(select count(*) from public.tournament_creation_requests where request_id='90000000-0000-0000-0000-000000000002'),0);
+
+set role authenticated; set test.uid='11111111-1111-1111-1111-111111111111';
+select public.create_tournament_with_players(
+  '90000000-0000-0000-0000-000000000003',
+  '{"name":"Cercle atomique","format":"round_robin","rounds_planned":99,"tiebreaks":["buchholz","wins"]}',
+  array['aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000002']::uuid[],
+  '[[{"white":"aaaaaaaa-0000-0000-0000-000000000001","black":"aaaaaaaa-0000-0000-0000-000000000002","result":null}]]',true);
+reset role; reset test.uid;
+select pg_temp.check_equal('cercle atomique : tournoi, joueurs, ronde et appariement',
+  (select count(*) from public.tournaments t join public.tournament_players tp on tp.tournament_id=t.id join public.rounds r on r.tournament_id=t.id join public.pairings p on p.round_id=r.id where t.name='Cercle atomique'),2);
+select pg_temp.check_equal('cercle publie facultativement et nombre de rondes recalcule',
+  (select count(*) from public.tournaments where name='Cercle atomique' and published_at is not null and rounds_planned=1),1);
+
+-- Player merge is super-admin only and repoints references transactionally.
+insert into public.players(id,name,fide_id) values
+ ('aaaaaaaa-0000-0000-0000-000000000010','Doublon source',900001),
+ ('aaaaaaaa-0000-0000-0000-000000000011','Joueur cible',900002);
+insert into public.tournament_players(tournament_id,player_id) values
+ ('cccccccc-0000-0000-0000-0000000000c5','aaaaaaaa-0000-0000-0000-000000000010');
+insert into public.rounds(id,tournament_id,number,released_at) values
+ ('dddddddd-0000-0000-0000-000000000010','cccccccc-0000-0000-0000-0000000000c5',3,now());
+insert into public.pairings(id,round_id,board,white_player_id,black_player_id) values
+ ('eeeeeeee-0000-0000-0000-000000000010','dddddddd-0000-0000-0000-000000000010',1,
+  'aaaaaaaa-0000-0000-0000-000000000010','aaaaaaaa-0000-0000-0000-000000000001');
+set role authenticated;set test.uid='11111111-1111-1111-1111-111111111111';
+select pg_temp.check_refused('admin ne modifie pas une donnee FIDE synchronisee',
+ $$update public.players set fide_title='GM' where id='aaaaaaaa-0000-0000-0000-000000000010'$$);
+update public.players set club='Club local' where id='aaaaaaaa-0000-0000-0000-000000000010';
+select pg_temp.check_refused('admin non super ne fusionne pas',
+ $$select public.merge_players('aaaaaaaa-0000-0000-0000-000000000010','aaaaaaaa-0000-0000-0000-000000000011','doublon')$$);
+reset role;reset test.uid;set role authenticated;set test.uid='33333333-3333-3333-3333-333333333333';
+select public.merge_players('aaaaaaaa-0000-0000-0000-000000000010','aaaaaaaa-0000-0000-0000-000000000011','doublon FIDE');
+reset role;reset test.uid;
+select pg_temp.check_equal('fusion marque la source',(select count(*) from public.players where id='aaaaaaaa-0000-0000-0000-000000000010' and merged_into='aaaaaaaa-0000-0000-0000-000000000011'),1);
+select pg_temp.check_equal('fusion deplace les inscriptions',(select count(*) from public.tournament_players where tournament_id='cccccccc-0000-0000-0000-0000000000c5' and player_id='aaaaaaaa-0000-0000-0000-000000000011'),1);
+select pg_temp.check_equal('fusion deplace les appariements',(select count(*) from public.pairings where id='eeeeeeee-0000-0000-0000-000000000010' and white_player_id='aaaaaaaa-0000-0000-0000-000000000011'),1);
+
+-- Club scoping: public, A, B, disabled member, unscoped legacy admin, super-admin.
+insert into auth.users(id) values
+ ('44444444-4444-4444-4444-444444444444'),('55555555-5555-5555-5555-555555555555');
+insert into public.profiles(id,role) values
+ ('44444444-4444-4444-4444-444444444444','admin'),('55555555-5555-5555-5555-555555555555','admin');
+insert into public.clubs(id,name,slug,active) values
+ ('bbbbbbbb-0000-0000-0000-000000000001','Club A','club-a',true),
+ ('bbbbbbbb-0000-0000-0000-000000000002','Club B','club-b',true),
+ ('bbbbbbbb-0000-0000-0000-000000000003','Club masqué','club-masque',false);
+insert into public.club_memberships(club_id,user_id,role,active) values
+ ('bbbbbbbb-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','owner',true),
+ ('bbbbbbbb-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','admin',true),
+ ('bbbbbbbb-0000-0000-0000-000000000001','44444444-4444-4444-4444-444444444444','admin',false);
+set role authenticated;set test.uid='11111111-1111-1111-1111-111111111111';
+select public.create_tournament_with_players(
+ '90000000-0000-0000-0000-000000000009',
+ '{"name":"Création Club A","format":"swiss","rounds_planned":1,"tiebreaks":["buchholz","wins"]}',
+ array['aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000002']::uuid[],null,false);
+reset role;reset test.uid;
+select pg_temp.check_equal('creation atomique rattache le club unique',(select count(*) from public.tournaments where name='Création Club A' and club_id='bbbbbbbb-0000-0000-0000-000000000001'),1);
+insert into public.tournaments(id,name,format,rounds_planned,status,created_by,club_id) values
+ ('cccccccc-0000-0000-0000-0000000000a1','Tournoi A','swiss',3,'draft','11111111-1111-1111-1111-111111111111','bbbbbbbb-0000-0000-0000-000000000001'),
+ ('cccccccc-0000-0000-0000-0000000000b1','Tournoi B','swiss',3,'draft','22222222-2222-2222-2222-222222222222','bbbbbbbb-0000-0000-0000-000000000002'),
+ ('cccccccc-0000-0000-0000-0000000000d1','Tournoi personnel','swiss',3,'draft','55555555-5555-5555-5555-555555555555',null);
+set role anon;
+select pg_temp.check_equal('public voit les clubs actifs',(select count(*) from public.clubs where slug in('club-a','club-b')),2);
+select pg_temp.check_equal('public ne voit pas le club inactif',(select count(*) from public.clubs where slug='club-masque'),0);
+select pg_temp.check_equal('public ne voit aucune membership',(select count(*) from public.club_memberships),0);
+reset role;set role authenticated;set test.uid='11111111-1111-1111-1111-111111111111';
+update public.tournaments set description='A autorise' where id='cccccccc-0000-0000-0000-0000000000a1';
+select pg_temp.check_equal('admin A gere le tournoi A',(select count(*) from public.tournaments where id='cccccccc-0000-0000-0000-0000000000a1' and description='A autorise'),1);
+update public.tournaments set description='interdit' where id='cccccccc-0000-0000-0000-0000000000b1';
+select pg_temp.check_equal('admin A ne gere pas le tournoi B',(select count(*) from public.tournaments where id='cccccccc-0000-0000-0000-0000000000b1' and description='interdit'),0);
+reset role;reset test.uid;set role authenticated;set test.uid='22222222-2222-2222-2222-222222222222';
+update public.tournaments set description='B autorise' where id='cccccccc-0000-0000-0000-0000000000b1';
+select pg_temp.check_equal('admin B gere le tournoi B',(select count(*) from public.tournaments where id='cccccccc-0000-0000-0000-0000000000b1' and description='B autorise'),1);
+reset role;reset test.uid;set role authenticated;set test.uid='44444444-4444-4444-4444-444444444444';
+update public.tournaments set description='interdit' where id='cccccccc-0000-0000-0000-0000000000a1';
+select pg_temp.check_equal('membre desactive sans ecriture',(select count(*) from public.tournaments where id='cccccccc-0000-0000-0000-0000000000a1' and description='interdit'),0);
+reset role;reset test.uid;set role authenticated;set test.uid='55555555-5555-5555-5555-555555555555';
+update public.tournaments set description='heritage conserve' where id='cccccccc-0000-0000-0000-0000000000d1';
+select pg_temp.check_equal('admin sans club conserve son tournoi personnel',(select count(*) from public.tournaments where id='cccccccc-0000-0000-0000-0000000000d1' and description='heritage conserve'),1);
+reset role;reset test.uid;set role authenticated;set test.uid='33333333-3333-3333-3333-333333333333';
+update public.tournaments set description='super' where id in('cccccccc-0000-0000-0000-0000000000a1','cccccccc-0000-0000-0000-0000000000b1');
+select pg_temp.check_equal('super admin gere tous les clubs',(select count(*) from public.tournaments where description='super'),2);
+reset role;reset test.uid;
 
 \echo ''
 \echo 'Toutes les verifications RLS sont passees.'

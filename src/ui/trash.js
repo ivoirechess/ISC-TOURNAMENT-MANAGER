@@ -9,7 +9,7 @@ import {
   getCurrentRole,
 } from "../data.js";
 import { confirmsPurge } from "../tournament-delete.js";
-import { STATUS_LABELS } from "../tournament-list.js";
+import { stateLabel } from "../tournament-lifecycle.js";
 import { FORMATS } from "../tournament-validation.js";
 
 function el(id) {
@@ -43,7 +43,7 @@ function renderRow(tournament, reload) {
   meta.className = "muted";
   meta.textContent =
     `${formatLabel(tournament.format)} · ` +
-    `${STATUS_LABELS[tournament.status] ?? tournament.status} · ` +
+    `${stateLabel(tournament)} · ` +
     `supprimé le ${deletedOn(tournament)}`;
 
   const actions = document.createElement("div");

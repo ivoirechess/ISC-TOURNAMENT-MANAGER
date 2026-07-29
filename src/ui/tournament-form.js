@@ -22,12 +22,20 @@ function el(id) {
 
 let players = [];
 const selected = new Set();
+const STEP_LABELS = ["Informations générales", "Format et cadence", "Départages", "Joueurs", "Vérification", "Enregistrement", "Publication facultative"];
+let currentStep = 0;
+let submitting = false;
+let requestId = crypto.randomUUID();
 
 // Ordered tie-break selection. Two are mandatory, six at most; the ordinal
 // labels ("1er départage", "2e départage"…) follow this list.
 const MIN_TIEBREAKS = 2;
 const MAX_TIEBREAKS = 6;
 let tiebreaks = ["buchholz", "sonnebornBerger"];
+function refreshTiebreakValidation() {
+  const check = validateTiebreakSelection(tiebreaks);
+  el("t-errors").textContent = check.errors.join(" ");
+}
 
 function ordinalLabel(position) {
   return position === 0 ? "1er départage" : `${position + 1}e départage`;
@@ -57,7 +65,7 @@ function renderTiebreakSelects() {
     select.addEventListener("change", () => {
       tiebreaks[position] = select.value;
       renderTiebreakSelects();
-      refreshValidation();
+      refreshTiebreakValidation();
     });
 
     row.append(select);
@@ -74,14 +82,14 @@ function addTiebreak() {
   if (!next) return;
   tiebreaks.push(next);
   renderTiebreakSelects();
-  refreshValidation();
+  refreshTiebreakValidation();
 }
 
 function removeTiebreak() {
   if (tiebreaks.length <= MIN_TIEBREAKS) return;
   tiebreaks.pop();
   renderTiebreakSelects();
-  refreshValidation();
+  refreshTiebreakValidation();
 }
 
 function renderFormatChoices() {
@@ -96,7 +104,7 @@ function renderFormatChoices() {
     input.value = format.value;
     input.disabled = !format.enabled;
     if (format.value === "swiss") input.checked = true;
-    input.addEventListener("change", refreshValidation);
+    input.addEventListener("change", () => { syncRoundsField(); el("t-errors").textContent = ""; });
     label.append(input, ` ${format.label}`);
     if (!format.enabled) {
       const soon = document.createElement("small");
@@ -159,6 +167,24 @@ function currentDraft() {
   };
 }
 
+function optionalNumber(id) {
+  const value = Number.parseInt(el(id).value, 10);
+  return Number.isInteger(value) ? value : null;
+}
+
+function renderWizard() {
+  for (const page of document.querySelectorAll(".wizard-page")) page.hidden = Number(page.dataset.step) !== currentStep;
+  const steps = el("wizard-steps"); steps.innerHTML = "";
+  STEP_LABELS.forEach((label, index) => { const item = document.createElement("span"); item.textContent = `${index + 1}. ${label}`; item.className = index === currentStep ? "active" : ""; steps.append(item); });
+  el("wizard-prev").disabled = currentStep === 0 || submitting;
+  el("wizard-next").hidden = currentStep === STEP_LABELS.length - 1;
+  el("t-submit").hidden = currentStep !== STEP_LABELS.length - 1;
+  if (currentStep === 4) {
+    const draft = currentDraft();
+    el("t-review").textContent = `${draft.name || "Sans nom"} · ${draft.format} · ${draft.roundsPlanned} ronde(s) · ${selected.size} participant(s) · ${tiebreaks.length} départage(s).`;
+  }
+}
+
 // A round-robin plays every pairing, so its length follows from the player
 // count: the field is filled in and locked rather than left to guesswork.
 function syncRoundsField() {
@@ -185,6 +211,8 @@ function refreshValidation() {
   const { errors, warnings } = validateTournamentDraft(currentDraft());
   const tiebreakCheck = validateTiebreakSelection(tiebreaks);
   const allErrors = [...errors, ...tiebreakCheck.errors];
+  const maxPlayers = optionalNumber("t-max-players");
+  if (maxPlayers !== null && selected.size > maxPlayers) allErrors.push("Le maximum de joueurs est dépassé.");
   el("t-errors").textContent = allErrors.join(" ");
   el("t-warnings").textContent = warnings.join(" ");
   return allErrors.length === 0;
@@ -228,25 +256,44 @@ async function onAddPlayer() {
 
 async function onSubmit(event) {
   event.preventDefault();
-  if (!refreshValidation()) return;
+  if (submitting || !refreshValidation()) return;
 
   const submitButton = el("t-submit");
+  submitting = true;
   submitButton.disabled = true;
   try {
     const draft = currentDraft();
     const tournament = await createTournament({
       name: draft.name,
+      description: el("t-description").value.trim() || null,
+      startsAt: el("t-starts").value ? new Date(el("t-starts").value).toISOString() : null,
+      city: el("t-city").value.trim() || null,
+      venueName: el("t-venue").value.trim() || null,
+      venueAddress: el("t-address").value.trim() || null,
+      organizerName: el("t-organizer").value.trim() || null,
+      publicContactEmail: el("t-contact").value.trim() || null,
+      registrationUrl: el("t-registration").value.trim() || null,
+      posterUrl: el("t-poster").value.trim() || null,
       format: draft.format,
+      cadence: el("t-cadence").value,
+      timeControlText: el("t-time-control").value.trim() || null,
+      rankingType: el("t-ranking").value,
+      fideRated: el("t-fide-rated").checked,
+      maxPlayers: optionalNumber("t-max-players"),
       roundsPlanned: draft.roundsPlanned,
       playerIds: [...selected],
       tiebreaks: [...tiebreaks],
+      publishNow: el("t-publish").checked,
+      requestId,
     });
     resetForm();
     window.location.hash = `#/tournoi/${tournament.id}`;
   } catch (err) {
     el("t-errors").textContent = err.message;
   } finally {
+    submitting = false;
     submitButton.disabled = false;
+    renderWizard();
   }
 }
 
@@ -259,25 +306,42 @@ function resetForm() {
   // Clears a leftover locked rounds field from a round-robin creation.
   syncRoundsField();
   tiebreaks = ["buchholz", "sonnebornBerger"];
+  currentStep = 0;
+  requestId = crypto.randomUUID();
   renderTiebreakSelects();
+  renderWizard();
 }
 
 /** Called once at startup. */
 export function initTournamentForm() {
   renderFormatChoices();
   el("tournament-form").addEventListener("submit", onSubmit);
-  el("t-name").addEventListener("input", refreshValidation);
-  el("t-rounds").addEventListener("input", refreshValidation);
+  el("t-name").addEventListener("input", () => { el("t-errors").textContent = ""; });
+  el("t-rounds").addEventListener("input", () => { el("t-errors").textContent = ""; });
   el("player-search").addEventListener("input", renderPlayerList);
   el("np-add").addEventListener("click", onAddPlayer);
   el("tiebreak-add").addEventListener("click", addTiebreak);
   el("tiebreak-remove").addEventListener("click", removeTiebreak);
+  el("wizard-prev").addEventListener("click", () => { if (!submitting && currentStep > 0) { currentStep -= 1; renderWizard(); } });
+  el("wizard-next").addEventListener("click", () => {
+    if (submitting) return;
+    el("t-errors").textContent = "";
+    if (currentStep === 0 && !el("t-name").value.trim()) { el("t-errors").textContent = "Le nom du tournoi est obligatoire."; return; }
+    if (currentStep === 2 && !validateTiebreakSelection(tiebreaks).ok) { el("t-errors").textContent = validateTiebreakSelection(tiebreaks).errors.join(" "); return; }
+    if (currentStep === 3 && !refreshValidation()) return;
+    currentStep = Math.min(STEP_LABELS.length - 1, currentStep + 1); renderWizard();
+  });
   renderTiebreakSelects();
   refreshSelectionCount();
+  renderWizard();
 }
 
 /** Called by the router each time the view is shown. */
 export async function openTournamentForm() {
   await reloadPlayers();
-  refreshValidation();
+  syncRoundsField();
+  el("t-errors").textContent = "";
+  el("t-warnings").textContent = "";
+  currentStep = 0;
+  renderWizard();
 }
