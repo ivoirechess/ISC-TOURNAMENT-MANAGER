@@ -10,6 +10,11 @@ import {
   validateTournamentDraft,
   imposedRoundCount,
 } from "../tournament-validation.js";
+import {
+  TIEBREAK_KEYS,
+  TIEBREAK_LABELS,
+  validateTiebreakSelection,
+} from "../tiebreaks.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -17,6 +22,67 @@ function el(id) {
 
 let players = [];
 const selected = new Set();
+
+// Ordered tie-break selection. Two are mandatory, six at most; the ordinal
+// labels ("1er départage", "2e départage"…) follow this list.
+const MIN_TIEBREAKS = 2;
+const MAX_TIEBREAKS = 6;
+let tiebreaks = ["buchholz", "sonnebornBerger"];
+
+function ordinalLabel(position) {
+  return position === 0 ? "1er départage" : `${position + 1}e départage`;
+}
+
+function renderTiebreakSelects() {
+  const box = el("tiebreak-selects");
+  box.innerHTML = "";
+
+  tiebreaks.forEach((chosen, position) => {
+    const row = document.createElement("label");
+    row.className = "tiebreak-row";
+    row.textContent = `${ordinalLabel(position)} `;
+
+    const select = document.createElement("select");
+    // A tie-break already used elsewhere is not offered again, so the
+    // selection can never hold a duplicate.
+    const takenElsewhere = new Set(tiebreaks.filter((_, i) => i !== position));
+    for (const key of TIEBREAK_KEYS) {
+      if (takenElsewhere.has(key)) continue;
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = TIEBREAK_LABELS[key];
+      option.selected = key === chosen;
+      select.append(option);
+    }
+    select.addEventListener("change", () => {
+      tiebreaks[position] = select.value;
+      renderTiebreakSelects();
+      refreshValidation();
+    });
+
+    row.append(select);
+    box.append(row);
+  });
+
+  el("tiebreak-add").disabled = tiebreaks.length >= MAX_TIEBREAKS;
+  el("tiebreak-remove").disabled = tiebreaks.length <= MIN_TIEBREAKS;
+}
+
+function addTiebreak() {
+  if (tiebreaks.length >= MAX_TIEBREAKS) return;
+  const next = TIEBREAK_KEYS.find((key) => !tiebreaks.includes(key));
+  if (!next) return;
+  tiebreaks.push(next);
+  renderTiebreakSelects();
+  refreshValidation();
+}
+
+function removeTiebreak() {
+  if (tiebreaks.length <= MIN_TIEBREAKS) return;
+  tiebreaks.pop();
+  renderTiebreakSelects();
+  refreshValidation();
+}
 
 function renderFormatChoices() {
   const box = el("t-formats");
@@ -117,9 +183,11 @@ function syncRoundsField() {
 function refreshValidation() {
   syncRoundsField();
   const { errors, warnings } = validateTournamentDraft(currentDraft());
-  el("t-errors").textContent = errors.join(" ");
+  const tiebreakCheck = validateTiebreakSelection(tiebreaks);
+  const allErrors = [...errors, ...tiebreakCheck.errors];
+  el("t-errors").textContent = allErrors.join(" ");
   el("t-warnings").textContent = warnings.join(" ");
-  return errors.length === 0;
+  return allErrors.length === 0;
 }
 
 async function reloadPlayers() {
@@ -171,6 +239,7 @@ async function onSubmit(event) {
       format: draft.format,
       roundsPlanned: draft.roundsPlanned,
       playerIds: [...selected],
+      tiebreaks: [...tiebreaks],
     });
     resetForm();
     window.location.hash = `#/tournoi/${tournament.id}`;
@@ -189,6 +258,8 @@ function resetForm() {
   refreshSelectionCount();
   // Clears a leftover locked rounds field from a round-robin creation.
   syncRoundsField();
+  tiebreaks = ["buchholz", "sonnebornBerger"];
+  renderTiebreakSelects();
 }
 
 /** Called once at startup. */
@@ -199,6 +270,9 @@ export function initTournamentForm() {
   el("t-rounds").addEventListener("input", refreshValidation);
   el("player-search").addEventListener("input", renderPlayerList);
   el("np-add").addEventListener("click", onAddPlayer);
+  el("tiebreak-add").addEventListener("click", addTiebreak);
+  el("tiebreak-remove").addEventListener("click", removeTiebreak);
+  renderTiebreakSelects();
   refreshSelectionCount();
 }
 

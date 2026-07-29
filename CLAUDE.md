@@ -161,15 +161,29 @@ uniquement s'il est déclaré dans `warnings`.
 
 ### Départages
 
-Ordre d'application, du premier au dernier :
+`src/tiebreaks.js`, module pur. Les définitions suivent les règles FIDE,
+y compris l'**adversaire virtuel** pour les parties non jouées :
+`Svon = SPR + (1 − SfPR) + 0,5 × (n − R)`. Un bye valant 1 point ici, cela
+revient au score du joueur avant la ronde, plus une demi-ponte par ronde
+restante.
 
-1. Points
-2. Buchholz
-3. Buchholz tronqué-1 (retire le plus faible adversaire)
-4. Sonneborn-Berger
-5. Cumulatif (progressif)
-6. Nombre de victoires
-7. Ordre alphabétique (départage final, déterministe)
+L'ordre n'est **pas figé** : chaque tournoi enregistre le sien à la création
+(colonne `tournaments.tiebreaks`, de 2 à 6 critères). Deux positions sont
+imposées et ne sont donc jamais stockées :
+
+- **Points** — toujours le premier critère.
+- **Ordre alphabétique** — toujours le dernier filet, non sélectionnable.
+  Il garantit un classement déterministe même quand tous les départages
+  choisis laissent des joueurs à égalité.
+
+Entre les deux, au choix de l'organisateur : Buchholz, Buchholz tronqué-1,
+Sonneborn-Berger, Cumulatif, Nombre de victoires, Confrontation directe.
+
+**Confrontation directe** — ne s'applique à un groupe d'ex æquo que si
+**toutes** les paires du groupe se sont rencontrées ; sinon elle est ignorée
+pour ce groupe et le départage suivant prend le relais. Une paire qui s'est
+rencontrée plusieurs fois (aller-retour) compte pour la **moyenne** de ces
+rencontres, jamais leur somme.
 
 ### Joueurs
 
