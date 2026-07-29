@@ -9,6 +9,8 @@
       --ink: #1c1c1c;
       --muted: #6b6b6b;
       --accent: #0a7d3b;
+      --accent-dark: #075c2d;
+      --gold: #b58a43;
       --paper: #fafafa;
       --line: #e2e2e2;
     }
@@ -26,12 +28,59 @@
       display: flex;
       align-items: center;
       gap: 1rem;
-      padding: 0.75rem 1.25rem;
+      padding: 0.55rem max(1rem, calc((100% - 60rem) / 2));
       border-bottom: 1px solid var(--line);
       background: #fff;
+      box-shadow: 0 2px 12px rgb(28 28 28 / 5%);
+      position: relative;
+      z-index: 5;
     }
-    header h1 { font-size: 1.1rem; margin: 0; flex: 1; }
-    #auth-status { color: var(--muted); font-size: 0.85rem; }
+    .brand { display: flex; align-items: center; gap: 0.75rem; color: inherit; text-decoration: none; flex: 1; }
+    .brand-logo {
+      width: 3.5rem;
+      height: 3.5rem;
+      flex: 0 0 auto;
+      border: 2px solid #d9c193;
+      border-radius: 50%;
+      color: var(--accent-dark);
+      background: #f7f3e9;
+      box-shadow: 0 2px 7px rgb(28 28 28 / 18%);
+    }
+    .brand-logo svg { display: block; width: 100%; height: 100%; }
+    .brand-copy { display: flex; flex-direction: column; }
+    .brand-copy strong { font-size: 1rem; line-height: 1.2; }
+    .brand-copy small { color: var(--accent); font-weight: 650; letter-spacing: 0.03em; }
+    .profile { position: relative; }
+    #profile-button {
+      display: grid;
+      place-items: center;
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+      border-color: #cfd8d2;
+      border-radius: 50%;
+      color: var(--accent-dark);
+      background: #f1f7f3;
+    }
+    #profile-button:hover, #profile-button[aria-expanded="true"] { border-color: var(--accent); background: #e4f1e9; }
+    #profile-button svg { width: 1.35rem; height: 1.35rem; }
+    #profile-menu {
+      position: absolute;
+      top: calc(100% + 0.6rem);
+      right: 0;
+      width: min(18rem, calc(100vw - 2rem));
+      padding: 0.55rem;
+      border: 1px solid var(--line);
+      border-radius: 0.75rem;
+      background: #fff;
+      box-shadow: 0 12px 35px rgb(28 28 28 / 16%);
+    }
+    #profile-menu[hidden] { display: none; }
+    .profile-identity { padding: 0.45rem 0.55rem 0.7rem; border-bottom: 1px solid var(--line); margin-bottom: 0.45rem; }
+    #auth-name { display: block; overflow-wrap: anywhere; }
+    #auth-role { display: block; color: var(--accent); font-size: 0.8rem; margin-top: 0.1rem; }
+    .menu-action { width: 100%; border: 0; text-align: left; padding: 0.65rem; border-radius: 0.45rem; }
+    .menu-action:hover { background: #f3f5f3; }
     main { flex: 1; max-width: 60rem; width: 100%; margin: 0 auto; padding: 1.5rem 1.25rem; }
     footer {
       padding: 1rem 1.25rem;
@@ -56,12 +105,14 @@
     body.is-admin .admin-only { display: block; }
     #login-view {
       max-width: 22rem;
-      margin: 1.5rem auto;
+      width: calc(100% - 2rem);
       padding: 1.25rem;
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 0.8rem;
       background: #fff;
+      box-shadow: 0 18px 60px rgb(28 28 28 / 25%);
     }
+    #login-view::backdrop { background: rgb(13 31 20 / 52%); backdrop-filter: blur(2px); }
     #login-view h2 { margin-top: 0; font-size: 1rem; }
     #login-view label { display: block; margin: 0.6rem 0 0.2rem; font-size: 0.85rem; }
     #login-view input { width: 100%; padding: 0.45rem; border: 1px solid var(--line); border-radius: 4px; font: inherit; }
@@ -217,13 +268,37 @@
     button.entry { padding: 0.2rem 0.55rem; font-size: 0.85rem; min-width: 3rem; }
     button.entry.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .result-shown { min-width: 5rem; text-align: right; color: var(--muted); font-size: 0.9rem; }
+    @media (max-width: 32rem) {
+      .brand-copy small { display: none; }
+      .brand-logo { width: 3rem; height: 3rem; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>ISC Tournament Manager</h1>
-    <span id="auth-status"></span>
-    <button id="logout-button" hidden>Se déconnecter</button>
+    <a class="brand" href="#/" aria-label="Accueil ISC Tournament Manager">
+      <span class="brand-logo" aria-hidden="true">
+        <svg viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M18 47h28M21 42h22l-3-6H24l-3 6Zm6-9h10l2-14H25l2 14Zm5-14V10m-5 5h10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M13 36c-3-8 0-17 7-22M51 36c3-8 0-17-7-22" fill="none" stroke="#b58a43" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="brand-copy"><strong>ISC Tournament Manager</strong><small>Ivoire Chess · Côte d'Ivoire</small></span>
+    </a>
+    <div class="profile">
+      <button id="profile-button" type="button" aria-label="Ouvrir le menu du profil" aria-expanded="false" aria-controls="profile-menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path></svg>
+      </button>
+      <div id="profile-menu" hidden>
+        <div id="profile-identity" class="profile-identity" hidden>
+          <strong id="auth-name"></strong>
+          <span id="auth-role"></span>
+        </div>
+        <button id="login-button" class="menu-action" type="button">Connexion organisateur</button>
+        <button id="logout-button" class="menu-action" type="button" hidden>Se déconnecter</button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -377,8 +452,8 @@
       <p><a id="standings-back" href="#/">← Retour au tournoi</a></p>
     </section>
 
-    <section id="login-view" hidden>
-      <h2>Connexion organisateur</h2>
+    <dialog id="login-view" aria-labelledby="login-title">
+      <h2 id="login-title">Connexion organisateur</h2>
       <p id="login-error"></p>
       <form id="login-form">
         <label for="login-email">Adresse e-mail</label>
@@ -390,12 +465,12 @@
           <button type="button" id="login-cancel">Annuler</button>
         </div>
       </form>
-    </section>
+    </dialog>
   </main>
 
   <footer>
     <span>Ivoire Chess — Côte d'Ivoire</span>
-    <a href="#" id="login-link">Connexion organisateur</a>
+    <span>Gestion de tournois d'échecs</span>
   </footer>
 
   <!-- Runtime configuration. env.js IS committed and must only ever hold
