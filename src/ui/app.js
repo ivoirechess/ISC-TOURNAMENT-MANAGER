@@ -14,7 +14,7 @@ import { openStandings } from "./standings.js";
 import { initTournamentEdit, openTournamentEdit } from "./tournament-edit.js";
 import { openTrash } from "./trash.js";
 import { openRounds, closeRounds } from "./rounds.js";
-import { getCurrentRole, getTournamentResults, onAuthChange } from "../data.js";
+import { getCurrentRole, getTournamentResults } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { FORMATS } from "../tournament-validation.js";
 import { STATUS_LABELS } from "../tournament-list.js";
@@ -169,18 +169,31 @@ async function route() {
 }
 
 async function init() {
-  initTournamentForm();
-  initTournamentEdit();
+  // Authentication handlers must exist before any fallible application
+  // domain starts. Each domain failure is isolated and reported visibly.
+  initAuth({
+    onStateChange: () => void route().catch((error) => {
+      console.error("Échec du routeur après changement de session", error);
+    }),
+  });
+  const initializeDomain = (name, callback) => {
+    try {
+      callback();
+    } catch (error) {
+      console.error(`Échec de l'initialisation ${name}`, error);
+      const notice = document.createElement("p");
+      notice.className = "notice";
+      notice.textContent = `Une partie de l’application (${name}) est indisponible. La consultation publique reste accessible.`;
+      document.querySelector("main")?.prepend(notice);
+    }
+  };
+  initializeDomain("création de tournoi", initTournamentForm);
+  initializeDomain("modification de tournoi", initTournamentEdit);
   window.addEventListener("hashchange", route);
-  await initAuth();
-  await route();
   try {
-    // Leaving the admin-only view on logout.
-    await onAuthChange(() => {
-      route();
-    });
-  } catch {
-    // Without configuration the site stays in public mode.
+    await route();
+  } catch (error) {
+    console.error("Échec du routeur", error);
   }
 }
 

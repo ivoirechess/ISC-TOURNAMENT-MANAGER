@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="isc-version" content="74c2923-dev">
   <title>ISC Tournament Manager — Ivoire Chess</title>
   <style>
     :root {
@@ -111,6 +112,8 @@
       border-radius: 0.8rem;
       background: #fff;
       box-shadow: 0 18px 60px rgb(28 28 28 / 25%);
+      max-height: calc(100dvh - 2rem);
+      overflow-y: auto;
     }
     #login-view::backdrop { background: rgb(13 31 20 / 52%); backdrop-filter: blur(2px); }
     #login-view h2 { margin-top: 0; font-size: 1rem; }
@@ -118,6 +121,9 @@
     #login-view input { width: 100%; padding: 0.45rem; border: 1px solid var(--line); border-radius: 4px; font: inherit; }
     #login-view .actions { display: flex; gap: 0.5rem; margin-top: 0.9rem; }
     #login-error { color: #b3261e; font-size: 0.85rem; min-height: 1.2em; margin: 0.5rem 0 0; }
+    #forgot-password { border: 0; padding: 0; margin-top: 0.75rem; color: var(--accent-dark); text-decoration: underline; }
+    .dialog-fallback { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); z-index: 100; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
     .notice {
       padding: 0.75rem 1rem;
       border: 1px dashed var(--line);
@@ -452,16 +458,17 @@
       <p><a id="standings-back" href="#/">← Retour au tournoi</a></p>
     </section>
 
-    <dialog id="login-view" aria-labelledby="login-title">
+    <dialog id="login-view" aria-labelledby="login-title" aria-describedby="login-error">
       <h2 id="login-title">Connexion organisateur</h2>
-      <p id="login-error"></p>
+      <p id="login-error" role="status" aria-live="polite"></p>
       <form id="login-form">
         <label for="login-email">Adresse e-mail</label>
         <input id="login-email" type="email" autocomplete="username" required>
         <label for="login-password">Mot de passe</label>
         <input id="login-password" type="password" autocomplete="current-password" required>
+        <button type="button" id="forgot-password">Mot de passe oublié ?</button>
         <div class="actions">
-          <button type="submit" class="primary">Se connecter</button>
+          <button type="submit" id="login-submit" class="primary">Se connecter</button>
           <button type="button" id="login-cancel">Annuler</button>
         </div>
       </form>
