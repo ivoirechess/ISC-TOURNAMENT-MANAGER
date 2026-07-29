@@ -6,9 +6,11 @@
 
 import { initAuth } from "./auth.js";
 import { initTournamentForm, openTournamentForm } from "./tournament-form.js";
+import { openHome } from "./home.js";
 import { getCurrentRole, getTournament, onAuthChange } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { FORMATS } from "../tournament-validation.js";
+import { STATUS_LABELS } from "../tournament-list.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -35,7 +37,7 @@ async function showTournament(id) {
     }
     el("tournament-title").textContent = tournament.name;
     const formatLabel = FORMATS.find((f) => f.value === tournament.format)?.label ?? tournament.format;
-    const statusLabel = { draft: "brouillon", ongoing: "en cours", archived: "archivé" }[tournament.status] ?? tournament.status;
+    const statusLabel = STATUS_LABELS[tournament.status] ?? tournament.status;
     el("tournament-meta").textContent =
       `Format ${formatLabel} · ${tournament.rounds_planned} rondes prévues · statut : ${statusLabel}`;
     const list = el("tournament-players");
@@ -77,6 +79,7 @@ async function route() {
   }
 
   showView("view-home");
+  await openHome();
 }
 
 async function init() {
