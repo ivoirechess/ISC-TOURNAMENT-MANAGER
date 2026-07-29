@@ -372,8 +372,7 @@ export async function updatePairingResult(pairingId, result) {
 // ---------------------------------------------------------------------------
 // Deletion
 // ---------------------------------------------------------------------------
-// An admin never destroys a tournament: deleting marks `deleted_at`, which
-// hides it from everyone including its own owner. Only a super_admin sees
+// An admin never destroys a tournament: deleting marks `deleted_at`. Only a super_admin sees
 // the trash, restores from it, or clears it for good.
 
 /**

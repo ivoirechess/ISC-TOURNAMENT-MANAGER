@@ -82,7 +82,12 @@ describe("confirmsPurge", () => {
   });
 });
 
-describe("les regles de suppression tiennent cote serveur", () => {
+// Ces tests lisent la migration comme du TEXTE : ils attrapent une garde
+// disparue du source, jamais une garde qui ne fait pas ce qu'elle annonce.
+// La verification de comportement est ailleurs, dans
+// supabase/tests/rls_checks.sql (`npm run test:rls`), qui rejoue les
+// politiques sous quatre appelants reels contre un vrai PostgreSQL.
+describe("les regles de suppression sont bien ecrites dans la migration", () => {
   const migration = readFileSync(
     new URL("../supabase/migrations/20260731120000_tournament_soft_delete.sql", import.meta.url),
     "utf8"
@@ -102,8 +107,11 @@ describe("les regles de suppression tiennent cote serveur", () => {
       );
     }
     assert.match(migration, /drop policy "pairings are readable by everyone" on public\.pairings;/);
-    assert.match(migration, /exists \(select 1 from public\.tournaments t where t\.id = tournament_id\)/);
-    assert.match(migration, /exists \(select 1 from public\.rounds r where r\.id = round_id\)/);
+    // Colonnes qualifiees : non qualifiees, elles se relieraient a la table
+    // interne le jour ou celle-ci gagnerait une colonne du meme nom.
+    assert.match(migration, /where t\.id = public\.tournament_players\.tournament_id/);
+    assert.match(migration, /where t\.id = public\.rounds\.tournament_id/);
+    assert.match(migration, /where r\.id = public\.pairings\.round_id/);
   });
 
   test("aucun DELETE reel pour un admin : seul un super_admin detruit", () => {
@@ -111,11 +119,37 @@ describe("les regles de suppression tiennent cote serveur", () => {
     const deletePolicy = migration.slice(
       migration.indexOf('create policy "only super_admin deletes tournaments for good"')
     );
-    assert.match(deletePolicy.slice(0, 200), /for delete\s+to authenticated\s+using \(public\.is_super_admin\(\)\)/);
+    assert.match(
+      deletePolicy.slice(0, 200),
+      /for delete\s+to authenticated\s+using \(public\.is_super_admin\(\) and deleted_at is not null\)/
+    );
   });
 
-  test("un tournoi supprime est gele : plus aucune ecriture dessus", () => {
-    assert.match(migration, /and t\.deleted_at is null/);
+  test("un tournoi supprime est gele : can_write_tournament exige deleted_at null", () => {
+    const fn = migration.slice(
+      migration.indexOf("create or replace function public.can_write_tournament"),
+      migration.indexOf("-- Destroying a tournament's contents")
+    );
+    assert.match(fn, /and t\.deleted_at is null/);
+  });
+
+  test("le contenu d'un tournoi archive n'est pas supprimable non plus", () => {
+    // Sans cela, la regle « effacer un resultat seulement en cours » se
+    // contourne en supprimant l'appariement puis en le reinserant.
+    for (const table of ["tournament_players", "rounds", "pairings"]) {
+      assert.ok(
+        migration.includes(`drop policy "owner or super_admin deletes ${table}" on public.${table};`),
+        `l'ancienne politique DELETE de ${table} doit etre remplacee`
+      );
+    }
+    const helper = migration.slice(
+      migration.indexOf("create or replace function public.can_destroy_tournament_content")
+    );
+    assert.match(helper.slice(0, 500), /t\.status <> 'archived'/);
+  });
+
+  test("la purge exige un passage par la corbeille", () => {
+    assert.match(migration, /using \(public\.is_super_admin\(\) and deleted_at is not null\)/);
   });
 
   test("effacer un resultat exige un tournoi en cours", () => {
@@ -131,6 +165,9 @@ describe("les regles de suppression tiennent cote serveur", () => {
 
   test("la fonction de marquage n'est pas ouverte a l'anonyme", () => {
     assert.match(migration, /revoke execute on function public\.soft_delete_tournament\(uuid\) from public;/);
+    // Supabase accorde EXECUTE a anon par defaut, et revoquer PUBLIC ne
+    // reprend pas un grant explicite : il faut nommer anon.
+    assert.match(migration, /revoke execute on function public\.soft_delete_tournament\(uuid\) from anon;/);
     assert.match(migration, /grant execute on function public\.soft_delete_tournament\(uuid\) to authenticated;/);
   });
 
@@ -143,8 +180,9 @@ describe("les regles de suppression tiennent cote serveur", () => {
     );
     assert.match(fn, /security definer/);
     assert.match(fn, /set search_path = ''/);
-    assert.match(fn, /public\.is_super_admin\(\)/);
-    assert.match(fn, /t\.created_by = auth\.uid\(\)/);
+    // Elle appelle le controle des politiques plutot que d'en recopier la
+    // logique, qui pourrait diverger sans que rien ne le signale.
+    assert.match(fn, /if not public\.can_write_tournament\(t_id\) then/);
     assert.match(fn, /raise exception 'Vous n''avez pas le droit de supprimer ce tournoi\.'/);
   });
 });
