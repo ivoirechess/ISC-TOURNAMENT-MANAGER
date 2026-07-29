@@ -168,12 +168,45 @@ async function route() {
   await openHome();
 }
 
+// Startup must not be all-or-nothing. `init` used to call the view
+// initialisers before initAuth, with nothing catching a throw: one missing
+// element in a screen the visitor was not even looking at left the whole
+// sign-in path unbound, so clicking "Connexion organisateur" did nothing at
+// all — no dialog, no message, the failure visible only in the console.
+//
+// Each step is now isolated, sign-in is wired first, and a step that fails
+// says so on the page instead of taking the rest down with it.
+function startupFailure(step, error) {
+  console.error(`Initialisation « ${step} » : ${error?.message ?? error}`);
+  const banner = el("startup-error");
+  if (!banner) return;
+  banner.hidden = false;
+  banner.textContent =
+    "Une partie de l'interface n'a pas pu démarrer " +
+    `(${step}). Rechargez la page ; si le problème persiste, signalez ce ` +
+    `message : ${error?.message ?? error}`;
+}
+
+async function step(name, run) {
+  try {
+    await run();
+    return true;
+  } catch (error) {
+    startupFailure(name, error);
+    return false;
+  }
+}
+
 async function init() {
-  initTournamentForm();
-  initTournamentEdit();
+  // Sign-in first: whatever else fails, the organizer can still log in.
+  await step("connexion", initAuth);
+
+  await step("formulaire de création", initTournamentForm);
+  await step("écran de modification", initTournamentEdit);
+
   window.addEventListener("hashchange", route);
-  await initAuth();
-  await route();
+  await step("affichage de la page", route);
+
   try {
     // Leaving the admin-only view on logout.
     await onAuthChange(() => {
@@ -184,4 +217,4 @@ async function init() {
   }
 }
 
-init();
+init().catch((error) => startupFailure("démarrage", error));

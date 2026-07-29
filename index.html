@@ -8,9 +8,11 @@
     :root {
       --ink: #1c1c1c;
       --muted: #6b6b6b;
-      --accent: #0a7d3b;
-      --accent-dark: #075c2d;
-      --gold: #b58a43;
+      /* Greens and gold sampled from the IvoireChess badge in assets/logo.png,
+         lifted just enough to stay legible as interface colours. */
+      --accent: #2e7d3a;
+      --accent-dark: #1c5426;
+      --gold: #c9a05a;
       --paper: #fafafa;
       --line: #e2e2e2;
     }
@@ -37,16 +39,16 @@
     }
     .brand { display: flex; align-items: center; gap: 0.75rem; color: inherit; text-decoration: none; flex: 1; }
     .brand-logo {
-      width: 3.5rem;
-      height: 3.5rem;
+      display: block;
+      /* Square source, square box: the badge keeps its proportions at any
+         header size, and `object-fit` guards against a future non-square file. */
+      width: 3.25rem;
+      height: 3.25rem;
       flex: 0 0 auto;
-      border: 2px solid #d9c193;
+      object-fit: contain;
       border-radius: 50%;
-      color: var(--accent-dark);
-      background: #f7f3e9;
       box-shadow: 0 2px 7px rgb(28 28 28 / 18%);
     }
-    .brand-logo svg { display: block; width: 100%; height: 100%; }
     .brand-copy { display: flex; flex-direction: column; }
     .brand-copy strong { font-size: 1rem; line-height: 1.2; }
     .brand-copy small { color: var(--accent); font-weight: 650; letter-spacing: 0.03em; }
@@ -209,6 +211,13 @@
     #standings-table th:nth-child(2), #standings-table td:nth-child(2) { text-align: left; }
     #standings-table thead th { background: #f2f2f2; font-size: 0.8rem; }
     .success { color: var(--accent); font-size: 0.9rem; min-height: 1.2em; }
+    .startup-error {
+      padding: 0.7rem 0.9rem;
+      border: 1px solid #b3261e;
+      border-radius: 6px;
+      background: #fdf3f2;
+      margin-bottom: 1rem;
+    }
     #view-tournament-edit fieldset {
       border: 1px solid var(--line);
       border-radius: 6px;
@@ -270,20 +279,16 @@
     .result-shown { min-width: 5rem; text-align: right; color: var(--muted); font-size: 0.9rem; }
     @media (max-width: 32rem) {
       .brand-copy small { display: none; }
-      .brand-logo { width: 3rem; height: 3rem; }
+      .brand-logo { width: 2.75rem; height: 2.75rem; }
     }
   </style>
 </head>
 <body>
   <header>
     <a class="brand" href="#/" aria-label="Accueil ISC Tournament Manager">
-      <span class="brand-logo" aria-hidden="true">
-        <svg viewBox="0 0 64 64">
-          <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="2"/>
-          <path d="M18 47h28M21 42h22l-3-6H24l-3 6Zm6-9h10l2-14H25l2 14Zm5-14V10m-5 5h10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M13 36c-3-8 0-17 7-22M51 36c3-8 0-17-7-22" fill="none" stroke="#b58a43" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </span>
+      <img class="brand-logo" src="./assets/logo.png"
+           width="192" height="192" decoding="async"
+           alt="IvoireChess Côte d'Ivoire">
       <span class="brand-copy"><strong>ISC Tournament Manager</strong><small>Ivoire Chess · Côte d'Ivoire</small></span>
     </a>
     <div class="profile">
@@ -302,6 +307,8 @@
   </header>
 
   <main>
+    <p id="startup-error" class="error startup-error" hidden></p>
+
     <section id="view-home">
       <!-- The create button is injected here by src/ui/home.js for admins
            only: absent from the DOM for the public, not just hidden. -->

@@ -66,8 +66,12 @@ function showLoginView(show) {
   const dialog = el("login-view");
   if (show) {
     setMenuOpen(false);
-    if (typeof dialog.showModal === "function") dialog.showModal();
-    else dialog.setAttribute("open", "");
+    // showModal() throws if the dialog is already open, which would abort
+    // the handler and leave the click looking like it did nothing.
+    if (!dialog.open) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    }
     el("login-email").focus();
   } else if (typeof dialog.close === "function") {
     dialog.close();
