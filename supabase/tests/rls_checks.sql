@@ -376,5 +376,42 @@ select pg_temp.check_equal('les slugs restent uniques entre tournois vivants',
   (select count(*) from (select slug from public.tournaments
      where deleted_at is null group by slug having count(*) > 1) d), 0);
 
+-- A round-robin draft already owns its complete calendar. It remains
+-- read-only until the explicit start transition, which validates the round
+-- count and changes only the tournament lifecycle fields.
+insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
+values ('cccccccc-0000-0000-0000-0000000000c5', 'Toutes rondes prepare',
+        'round_robin', 1, 'draft', '11111111-1111-1111-1111-111111111111',
+        array['buchholz', 'wins']);
+insert into public.tournament_players(tournament_id, player_id) values
+  ('cccccccc-0000-0000-0000-0000000000c5', 'aaaaaaaa-0000-0000-0000-000000000001'),
+  ('cccccccc-0000-0000-0000-0000000000c5', 'aaaaaaaa-0000-0000-0000-000000000002');
+insert into public.rounds(id, tournament_id, number) values
+  ('dddddddd-0000-0000-0000-0000000000c5', 'cccccccc-0000-0000-0000-0000000000c5', 1);
+insert into public.pairings(id, round_id, white_player_id, black_player_id, result, board) values
+  ('eeeeeeee-0000-0000-0000-0000000000c5', 'dddddddd-0000-0000-0000-0000000000c5',
+   'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', null, 1);
+
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check_refused('aucun resultat avant le demarrage toutes rondes',
+  $$update public.pairings set result = '1-0'
+      where id = 'eeeeeeee-0000-0000-0000-0000000000c5'$$);
+select public.start_tournament('cccccccc-0000-0000-0000-0000000000c5');
+update public.pairings set result = '1-0'
+ where id = 'eeeeeeee-0000-0000-0000-0000000000c5';
+reset role; reset test.uid;
+
+select pg_temp.check_equal('toutes rondes demarre et date sans regenerer',
+  (select count(*) from public.tournaments
+    where id = 'cccccccc-0000-0000-0000-0000000000c5'
+      and status = 'ongoing' and started_at is not null), 1);
+select pg_temp.check_equal('le calendrier toutes rondes reste intact',
+  (select count(*) from public.rounds
+    where tournament_id = 'cccccccc-0000-0000-0000-0000000000c5'), 1);
+select pg_temp.check_equal('la saisie devient possible apres demarrage',
+  (select count(*) from public.pairings
+    where id = 'eeeeeeee-0000-0000-0000-0000000000c5' and result = '1-0'), 1);
+
 \echo ''
 \echo 'Toutes les verifications RLS sont passees.'
