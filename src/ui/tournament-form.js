@@ -5,7 +5,11 @@
 // of anyone who is not an admin, whatever this screen displays.
 
 import { listPlayers, createPlayer, createTournament } from "../data.js";
-import { FORMATS, validateTournamentDraft } from "../tournament-validation.js";
+import {
+  FORMATS,
+  validateTournamentDraft,
+  imposedRoundCount,
+} from "../tournament-validation.js";
 
 function el(id) {
   return document.getElementById(id);
@@ -89,7 +93,29 @@ function currentDraft() {
   };
 }
 
+// A round-robin plays every pairing, so its length follows from the player
+// count: the field is filled in and locked rather than left to guesswork.
+function syncRoundsField() {
+  const formatInput = document.querySelector('#t-formats input[name="format"]:checked');
+  const format = formatInput ? formatInput.value : "swiss";
+  const roundsInput = el("t-rounds");
+  const hint = el("t-rounds-hint");
+  const imposed = imposedRoundCount(format, selected.size);
+
+  if (imposed === null) {
+    roundsInput.readOnly = false;
+    hint.textContent = "";
+    return;
+  }
+  roundsInput.readOnly = true;
+  roundsInput.value = String(imposed);
+  hint.textContent =
+    `Ce format joue toutes les rencontres : le nombre de rondes découle du ` +
+    `nombre de joueurs (${selected.size} joueur(s) → ${imposed} ronde(s)).`;
+}
+
 function refreshValidation() {
+  syncRoundsField();
   const { errors, warnings } = validateTournamentDraft(currentDraft());
   el("t-errors").textContent = errors.join(" ");
   el("t-warnings").textContent = warnings.join(" ");
@@ -161,6 +187,8 @@ function resetForm() {
   el("t-errors").textContent = "";
   el("t-warnings").textContent = "";
   refreshSelectionCount();
+  // Clears a leftover locked rounds field from a round-robin creation.
+  syncRoundsField();
 }
 
 /** Called once at startup. */
