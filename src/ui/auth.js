@@ -1,4 +1,4 @@
-// Authentication UI: discreet login link, login form, session status,
+// Authentication UI: profile menu, login dialog, session status and
 // admin/public visual mode. All Supabase access goes through src/data.js.
 //
 // Visual admin mode is interface comfort only: RLS enforces the rules
@@ -9,6 +9,20 @@ import { isAdminRole, roleLabel } from "../roles.js";
 
 function el(id) {
   return document.getElementById(id);
+}
+
+/** Best available human-readable identity, with a safe email fallback. */
+export function sessionDisplayName(session) {
+  const user = session?.user;
+  const metadataName = user?.user_metadata?.full_name ?? user?.user_metadata?.name;
+  if (typeof metadataName === "string" && metadataName.trim()) return metadataName.trim();
+  if (typeof user?.email === "string" && user.email.trim()) return user.email.trim();
+  return "Compte organisateur";
+}
+
+function setMenuOpen(open) {
+  el("profile-menu").hidden = !open;
+  el("profile-button").setAttribute("aria-expanded", String(open));
 }
 
 async function refreshAuthState() {
@@ -27,30 +41,56 @@ async function refreshAuthState() {
   const admin = isAdminRole(role);
   document.body.classList.toggle("is-admin", admin);
 
-  const status = el("auth-status");
+  const identity = el("profile-identity");
+  const name = el("auth-name");
+  const roleName = el("auth-role");
   const logoutButton = el("logout-button");
-  const loginLink = el("login-link");
+  const loginButton = el("login-button");
 
   if (session) {
-    status.textContent = `${roleLabel(role)} — ${session.user?.email ?? ""}`;
+    name.textContent = sessionDisplayName(session);
+    roleName.textContent = roleLabel(role);
+    identity.hidden = false;
     logoutButton.hidden = false;
-    loginLink.hidden = true;
+    loginButton.hidden = true;
   } else {
-    status.textContent = "";
+    name.textContent = "";
+    roleName.textContent = "";
+    identity.hidden = true;
     logoutButton.hidden = true;
-    loginLink.hidden = false;
+    loginButton.hidden = false;
   }
 }
 
 function showLoginView(show) {
-  el("login-view").hidden = !show;
-  if (show) el("login-email").focus();
+  const dialog = el("login-view");
+  if (show) {
+    setMenuOpen(false);
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    el("login-email").focus();
+  } else if (typeof dialog.close === "function") {
+    dialog.close();
+  } else {
+    dialog.removeAttribute("open");
+  }
 }
 
 export async function initAuth() {
-  el("login-link").addEventListener("click", (event) => {
-    event.preventDefault();
+  el("profile-button").addEventListener("click", () => {
+    setMenuOpen(el("profile-menu").hidden);
+  });
+
+  el("login-button").addEventListener("click", () => {
     showLoginView(true);
+  });
+
+  // Keep this small menu predictable on desktop, keyboard and touch screens.
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".profile")) setMenuOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setMenuOpen(false);
   });
 
   el("login-cancel").addEventListener("click", () => {
@@ -73,6 +113,7 @@ export async function initAuth() {
   });
 
   el("logout-button").addEventListener("click", async () => {
+    setMenuOpen(false);
     try {
       await signOut();
     } catch {
