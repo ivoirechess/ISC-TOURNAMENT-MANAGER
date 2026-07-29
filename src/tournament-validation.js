@@ -1,23 +1,40 @@
 // Tournament creation rules. PURE LOGIC — no DOM, no Supabase.
-// Round-count guards delegate to the engine (src/swiss.js), which is the
-// single source of truth for them.
+// Round-count guards delegate to the engines (src/swiss.js,
+// src/roundrobin.js), which stay the single source of truth for them.
 //
 // Reminder (CLAUDE.md): these checks are interface comfort; RLS decides
 // server-side who may actually create anything.
 
 import { validateRoundCount } from "./swiss.js";
+import { scheduleLength } from "./roundrobin.js";
 
-// v1: only Swiss is playable; the other formats stay visible but disabled
-// in the UI ("Bientot disponible"), per CLAUDE.md decision #4.
+// Knockout is still out: it needs a bracket model the schema does not
+// describe yet. The other three are playable.
 export const FORMATS = [
   { value: "swiss", label: "Suisse", enabled: true },
-  { value: "round_robin", label: "Toutes rondes", enabled: false },
+  { value: "round_robin", label: "Toutes rondes", enabled: true },
   { value: "knockout", label: "Coupe", enabled: false },
-  { value: "double_round_robin", label: "Aller-retour", enabled: false },
+  { value: "double_round_robin", label: "Aller-retour", enabled: true },
 ];
 
 export function isFormatAvailable(format) {
   return FORMATS.some((f) => f.value === format && f.enabled);
+}
+
+/** True for the two formats served by the circle method. */
+export function isRoundRobin(format) {
+  return format === "round_robin" || format === "double_round_robin";
+}
+
+/**
+ * Round count imposed by the format, or null when the organizer chooses
+ * freely. A round-robin plays every pairing, so its length follows from the
+ * player count alone — there is nothing to pick.
+ */
+export function imposedRoundCount(format, playerCount) {
+  if (!isRoundRobin(format)) return null;
+  if (!Number.isInteger(playerCount) || playerCount < 2) return null;
+  return scheduleLength(playerCount, { doubled: format === "double_round_robin" });
 }
 
 /**
@@ -34,7 +51,7 @@ export function validateTournamentDraft({ name, format, roundsPlanned, playerCou
     errors.push("Le nom du tournoi est obligatoire.");
   }
   if (!isFormatAvailable(format)) {
-    errors.push("Ce format n'est pas encore disponible. Seul le format Suisse est ouvert pour l'instant.");
+    errors.push("Ce format n'est pas encore disponible.");
   }
   if (!Number.isInteger(roundsPlanned) || roundsPlanned < 1) {
     errors.push("Le nombre de rondes doit etre un entier superieur ou egal a 1.");
@@ -44,16 +61,28 @@ export function validateTournamentDraft({ name, format, roundsPlanned, playerCou
   }
 
   if (errors.length === 0) {
-    const check = validateRoundCount(playerCount, roundsPlanned);
-    if (check.blocked) {
-      errors.push(
-        `${check.message} Maximum pour ${playerCount} joueurs : ${check.max} ronde(s).`
-      );
-    } else if (check.warning) {
-      warnings.push(
-        `Avec ${playerCount} joueurs, au moins ${check.recommended} rondes sont recommandees ` +
-        "pour degager un vainqueur net. La creation reste possible."
-      );
+    const imposed = imposedRoundCount(format, playerCount);
+    if (imposed !== null) {
+      // Circle method: the schedule is fully determined, so the only valid
+      // round count is the one it produces. No guard, no degraded mode.
+      if (roundsPlanned !== imposed) {
+        errors.push(
+          `Ce format joue toutes les rencontres : avec ${playerCount} joueurs, ` +
+          `il compte exactement ${imposed} ronde(s).`
+        );
+      }
+    } else {
+      const check = validateRoundCount(playerCount, roundsPlanned);
+      if (check.blocked) {
+        errors.push(
+          `${check.message} Maximum pour ${playerCount} joueurs : ${check.max} ronde(s).`
+        );
+      } else if (check.warning) {
+        warnings.push(
+          `Avec ${playerCount} joueurs, au moins ${check.recommended} rondes sont recommandees ` +
+          "pour degager un vainqueur net. La creation reste possible."
+        );
+      }
     }
   }
 

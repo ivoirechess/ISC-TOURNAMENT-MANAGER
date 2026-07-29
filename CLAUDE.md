@@ -34,8 +34,9 @@ scripts/fide_civ.py   import de la liste FIDE (fédération CIV)
    vers SvelteKit/Astro indolore.
 3. **Un seul point d'accès aux données.** Tout passe par `src/data.js`.
    Aucun autre fichier n'importe le client Supabase.
-4. **Format Swiss uniquement** pour la v1. Coupe, toutes rondes et aller-retour
-   sont prévus dans l'interface mais désactivés.
+4. **Suisse, Toutes rondes et Aller-retour** sont jouables. La Coupe reste
+   prévue dans l'interface mais désactivée : elle demande un modèle de
+   tableau que le schéma ne décrit pas encore.
 
 ---
 
@@ -78,16 +79,38 @@ changement d'invariant.
 
 ### Nombre de rondes (garde-fou)
 
-Pour `n` joueurs inscrits :
+Ce garde-fou ne concerne que le **suisse**. Pour `n` joueurs inscrits :
 
 - **Maximum** : `n - 2` si `n` est pair, `n - 1` si `n` est impair. Au-delà,
   le suisse dégénère en round-robin et l'appariement par score voisin tombe
   structurellement en impasse → la création est **bloquée**, avec un message
-  orientant vers le format **Toutes rondes** (round-robin par la méthode du
-  cercle, à implémenter — c'est ce que l'utilisateur demande réellement à ce
-  niveau de rondes).
+  orientant vers le format **Toutes rondes** — c'est ce que l'utilisateur
+  demande réellement à ce niveau de rondes.
 - **Recommandé** : au moins `ceil(log2(n))` rondes pour dégager un vainqueur
   net. En dessous → simple **avertissement**, pas un blocage.
+
+En **Toutes rondes** et **Aller-retour**, rien ne se choisit : le calendrier
+joue toutes les rencontres, donc le nombre de rondes découle de l'effectif
+(`n - 1` si `n` est pair, `n` sinon ; doublé à l'aller-retour). L'interface
+le calcule et verrouille le champ.
+
+### Appariement toutes rondes (méthode du cercle)
+
+`src/roundrobin.js`, même standard de pureté que `src/swiss.js`. Un siège
+reste fixe, les autres tournent d'un cran par ronde ; un joueur fictif
+complète les effectifs impairs et son adversaire est exempt.
+
+Ce moteur **ne connaît pas de mode dégradé**, et n'en a pas besoin : le
+calendrier entier se déduit du seul effectif, avant le premier coup joué et
+indépendamment des résultats. Aucune impasse ne peut donc survenir — c'est
+une propriété de construction, vérifiée par les tests plutôt qu'affirmée.
+C'est aussi pourquoi ce format est la réponse au blocage du suisse.
+
+Le calendrier étant entièrement déterminé, il est généré et enregistré
+**dès la création** du tournoi (`rounds` + `pairings`), contrairement au
+suisse dont chaque ronde dépend des résultats de la précédente.
+
+### Appariement suisse
 
 ### Appariement suisse
 
@@ -170,9 +193,10 @@ main. La liste officielle CIV s'importe via `scripts/fide_civ.py`.
 ## Feuille de route
 
 - [x] Moteur suisse + départages, testés
-- [ ] Schéma Supabase + RLS
-- [ ] Authentification et rôles
-- [ ] Interface tournoi (création, rondes, classement)
+- [x] Moteur toutes rondes / aller-retour (méthode du cercle), testé
+- [x] Schéma Supabase + RLS
+- [x] Authentification et rôles
+- [ ] Interface tournoi : [x] création, [ ] saisie des rondes, [ ] classement
 - [ ] Annuaire des joueurs + import FIDE
 - [ ] Profils et tableaux de bord (palmarès)
 - [ ] Import FIDE mensuel automatisé (GitHub Actions)

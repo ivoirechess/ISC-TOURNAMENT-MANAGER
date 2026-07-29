@@ -6,6 +6,8 @@
 // network access as long as they don't call the functions below.
 
 import { getSupabaseEnv } from "./config.js";
+import { generateSchedule } from "./roundrobin.js";
+import { isRoundRobin } from "./tournament-validation.js";
 
 // Version pinned exactly: an unpinned tag would let the CDN swap the code
 // that handles organizer passwords without any visible change here.
@@ -165,23 +167,64 @@ export async function createTournament({ name, format, roundsPlanned, playerIds 
     throw new Error("La creation du tournoi a echoue (droits insuffisants ?).");
   }
 
-  const rows = playerIds.map((playerId) => ({
-    tournament_id: tournament.id,
-    player_id: playerId,
-  }));
-  const { error: tpError } = await client.from("tournament_players").insert(rows);
-  if (tpError) {
-    // Leave no half-created tournament behind; RLS lets the owner delete it.
+  // Rolls the whole creation back; rounds and pairings go with the
+  // tournament through ON DELETE CASCADE.
+  const abort = async (message) => {
     const { error: cleanupError } = await client
       .from("tournaments")
       .delete()
       .eq("id", tournament.id);
     throw new Error(
       cleanupError
-        ? "L'inscription des joueurs a echoue et le brouillon n'a pas pu etre supprime : " +
-          "retrouvez-le sur la page d'accueil pour le supprimer ou reessayer."
-        : "L'inscription des joueurs a echoue, le tournoi n'a pas ete cree."
+        ? `${message} Le brouillon n'a pas pu etre supprime : retrouvez-le sur ` +
+          "la page d'accueil pour le supprimer ou reessayer."
+        : `${message} Le tournoi n'a pas ete cree.`
     );
+  };
+
+  const rows = playerIds.map((playerId) => ({
+    tournament_id: tournament.id,
+    player_id: playerId,
+  }));
+  const { error: tpError } = await client.from("tournament_players").insert(rows);
+  if (tpError) {
+    await abort("L'inscription des joueurs a echoue.");
+  }
+
+  // Round-robin formats are fully determined by the field: the circle
+  // method yields the entire schedule up front, so it is written now. Swiss
+  // pairings depend on results and are drawn round by round instead
+  // (src/swiss.js, Phase 4).
+  if (isRoundRobin(format)) {
+    const schedule = generateSchedule(playerIds, {
+      doubled: format === "double_round_robin",
+    });
+
+    const { data: rounds, error: roundsError } = await client
+      .from("rounds")
+      .insert(schedule.map((_, index) => ({
+        tournament_id: tournament.id,
+        number: index + 1,
+      })))
+      .select("id, number");
+    if (roundsError) {
+      await abort("La generation du calendrier a echoue.");
+    }
+
+    const roundIdByNumber = new Map(rounds.map((r) => [r.number, r.id]));
+    const pairingRows = schedule.flatMap((round, index) =>
+      round.map((pairing, board) => ({
+        round_id: roundIdByNumber.get(index + 1),
+        white_player_id: pairing.white,
+        black_player_id: pairing.black,
+        result: pairing.result,
+        board: board + 1,
+      }))
+    );
+    const { error: pairingsError } = await client.from("pairings").insert(pairingRows);
+    if (pairingsError) {
+      await abort("L'enregistrement des appariements a echoue.");
+    }
   }
 
   return tournament;
