@@ -38,6 +38,16 @@ npm test
 
 Lanceur intégré de Node (`node --test`), aucune dépendance.
 
+## Récupération et suppression des tournois
+
+Appliquer la migration Supabase
+`20260810120000_tournament_recovery.sql` après toutes les migrations
+précédentes. Elle ajoute les journaux append-only de réouverture et de
+suppression, `deleted_by`/`deletion_reason`, puis installe les RPC
+transactionnelles `reopen_tournament` et `soft_delete_tournament`. Ne modifiez
+pas les migrations déjà déployées. Après déploiement, exécuter
+`npm run test:rls` contre PostgreSQL avant d'ouvrir l'accès en production.
+
 ## RPC de création transactionnelle
 
 `create_tournament_with_players(request_id, tournament_data, player_ids,

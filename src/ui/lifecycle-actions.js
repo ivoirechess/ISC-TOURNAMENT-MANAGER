@@ -15,6 +15,7 @@ import {
   getCurrentRole,
   getCurrentUserId,
   publishTournament,
+  reopenTournament,
   softDeleteTournament,
   startTournament,
   unpublishTournament,
@@ -25,6 +26,7 @@ import {
   cancelConfirmationMessage,
   stateLabel,
   viewActions,
+  deletionAllowed,
 } from "../tournament-lifecycle.js";
 import { deleteConfirmationMessage } from "../tournament-delete.js";
 import { isRoundRobin } from "../tournament-validation.js";
@@ -45,7 +47,8 @@ export const LIVE_BACKEND = {
   unpublish: (id) => unpublishTournament(id),
   start: (id) => startTournament(id),
   cancel: (id, reason) => cancelTournament(id, reason),
-  delete: (id) => softDeleteTournament(id),
+  delete: (id, reason, name) => softDeleteTournament(id, reason, name),
+  reopen: (id, reason, reopenLastRound) => reopenTournament(id, reason, reopenLastRound),
 };
 
 // Wording per action: what the button says. « Démarrer » is spelled out
@@ -57,6 +60,7 @@ const BUTTON_LABELS = {
   start: "Démarrer le tournoi",
   cancel: ACTION_LABELS.cancel,
   delete: ACTION_LABELS.delete,
+  reopen: "Réouvrir le tournoi",
 };
 
 const BUTTON_HINTS = {
@@ -65,6 +69,7 @@ const BUTTON_HINTS = {
   start: "Passe le tournoi en cours.",
   cancel: "Gèle le tournoi. Sa page publique reste en ligne s'il avait été publié.",
   delete: "Retire le tournoi de l'annuaire et de votre liste.",
+  reopen: "Repasse le tournoi en cours afin de corriger ses résultats.",
 };
 
 const DONE_MESSAGES = {
@@ -72,6 +77,7 @@ const DONE_MESSAGES = {
   unpublish: "Tournoi dépublié : il n'est plus visible du public.",
   cancel: "Tournoi annulé.",
   delete: "Tournoi supprimé.",
+  reopen: "Tournoi rouvert. La ronde doit être validée puis le tournoi clôturé à nouveau.",
 };
 
 export function startHint(tournament) {
@@ -120,8 +126,46 @@ export function confirmAction(action, tournament, dialogs = window) {
   return [];
 }
 
-async function run({ action, tournament, buttons, backend, reload, dialogs }) {
-  const args = confirmAction(action, tournament, dialogs);
+async function reopenArguments() {
+  const dialog = el("reopen-tournament-dialog");
+  const reason = el("reopen-tournament-reason");
+  const feedback = el("reopen-tournament-feedback");
+  reason.value = "";
+  feedback.textContent = "";
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  return new Promise((resolve) => dialog.addEventListener("close", () => {
+    const trimmed = reason.value.trim();
+    if (dialog.returnValue !== "confirm") return resolve(null);
+    if (!trimmed) {
+      feedback.textContent = "La raison est obligatoire.";
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      return resolve(null);
+    }
+    resolve([trimmed, el("reopen-last-round").checked]);
+  }, { once: true }));
+}
+
+async function run({ action, tournament, buttons, backend, reload, dialogs, role }) {
+  let args;
+  if (action === "reopen") args = await reopenArguments();
+  else if (action === "delete") {
+    if (!dialogs.confirm(deleteConfirmationMessage(tournament))) return;
+    let typed = null;
+    if (role === "super_admin" || tournament.published_at) {
+      typed = dialogs.prompt(`Retapez le nom exact du tournoi pour confirmer :\n${tournament.name}`);
+      if (typed === null || typed !== tournament.name) {
+        if (typed !== null) setFeedback("Le nom saisi ne correspond pas.", true);
+        return;
+      }
+    }
+    let reason = null;
+    if (tournament.status === "ongoing" || tournament.status === "archived") {
+      reason = dialogs.prompt("Raison obligatoire de la suppression :", "");
+      if (!reason?.trim()) { setFeedback("La raison est obligatoire.", true); return; }
+    }
+    args = [reason?.trim() || null, typed];
+  } else args = confirmAction(action, tournament, dialogs);
   if (args === null) return;
 
   // The whole group goes down, not just the button clicked: two transitions
@@ -150,6 +194,7 @@ async function run({ action, tournament, buttons, backend, reload, dialogs }) {
   // the arbiter lands on the boards they are about to fill in. The message
   // comes after the redraw, which would otherwise wipe it.
   await reload?.({ focusRound: action === "start" ? 1 : null });
+  if (action === "reopen") el("tournament-reopened-banner").hidden = false;
   setFeedback(action === "start" ? startDoneMessage(tournament) : DONE_MESSAGES[action], false);
 }
 
@@ -213,5 +258,10 @@ export async function openLifecycleActions(
   }
   if (!canManageTournament(tournament, role, userId)) return [];
 
-  return renderButtons(tournament, viewActions(tournament), { backend, reload, dialogs });
+  const actions = viewActions(tournament).filter((action) => action !== "delete");
+  if (deletionAllowed(tournament, role)) actions.push("delete");
+  if (role === "super_admin" && tournament.status === "archived" && !tournament.cancelled_at) {
+    actions.unshift("reopen");
+  }
+  return renderButtons(tournament, actions, { backend, reload, dialogs, role });
 }

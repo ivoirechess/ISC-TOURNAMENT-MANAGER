@@ -434,6 +434,15 @@ export async function reopenRound(roundId, reason, rollbackFollowing = false) {
   );
 }
 
+/** Reopens an archived tournament and, normally, its last validated round. */
+export async function reopenTournament(id, reason, reopenLastRound = true) {
+  return callTransition("reopen_tournament", {
+    p_tournament_id: id,
+    p_reason: reason,
+    p_reopen_last_round: reopenLastRound,
+  }, "La reouverture du tournoi a echoue.");
+}
+
 /** Cancels a tournament, with an optional reason shown on its page. */
 export async function cancelTournament(id, reason) {
   return callTransition(
@@ -455,9 +464,11 @@ export async function cancelTournament(id, reason) {
  * invisible to its own author — see the migration for the full reason. The
  * function re-checks ownership itself, so this is no less guarded.
  */
-export async function softDeleteTournament(id) {
+export async function softDeleteTournament(id, reason = null, confirmationName = null) {
   const client = await getClient();
-  const { error } = await client.rpc("soft_delete_tournament", { t_id: id });
+  const { error } = await client.rpc("soft_delete_tournament", {
+    t_id: id, p_reason: reason, p_confirmation_name: confirmationName,
+  });
   if (error) {
     throw new Error(editErrorMessage(error, "La suppression a echoue."));
   }
