@@ -356,9 +356,17 @@ describe("la migration du cycle de vie", () => {
     assert.match(fn, /row_data\.cancelled_at is not null/);
   });
 
-  test("demarrer verifie qu'aucune ronde n'existe deja", () => {
-    const fn = migration.slice(migration.indexOf("create or replace function public.start_tournament"));
-    assert.match(fn.slice(0, 2500), /exists \(select 1 from public\.rounds r where r\.tournament_id = t_id\)/);
+  test("le correctif distingue le suisse du calendrier toutes rondes", () => {
+    const fix = readFileSync(
+      new URL("../supabase/migrations/20260804120000_round_robin_start.sql", import.meta.url),
+      "utf8"
+    );
+    assert.match(fix, /if row_data\.format = 'swiss'/);
+    assert.match(fix, /if round_count <> 0/);
+    assert.match(fix, /row_data\.format in \('round_robin', 'double_round_robin'\)/);
+    assert.match(fix, /if round_count <> row_data\.rounds_planned/);
+    assert.match(fix, /if new\.result is distinct from old\.result/);
+    assert.match(fix, /parent_status is distinct from 'ongoing'/);
   });
 
   test("un brouillon non publie n'est jamais lisible publiquement", () => {

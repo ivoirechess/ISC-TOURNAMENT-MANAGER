@@ -72,9 +72,10 @@ describe("canEnterResults", () => {
     assert.equal(canEnterResults(tournament()).ok, true);
   });
 
-  test("refuse sur un brouillon et sur une archive", () => {
+  test("refuse tout statut autre que ongoing, calendrier present ou non", () => {
     assert.match(canEnterResults(tournament({ status: "draft" })).reason, /pas encore démarré/);
     assert.match(canEnterResults(tournament({ status: "archived" })).reason, /clôturé/);
+    assert.equal(canEnterResults(tournament({ status: "cancelled", rounds: [{}] })).ok, false);
   });
 
   test("refuse sans tournoi", () => {

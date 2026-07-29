@@ -49,6 +49,9 @@ export function canEnterResults(tournament) {
   if (tournament.status === "archived") {
     return { ok: false, reason: "Le tournoi est clôturé : les résultats ne changent plus." };
   }
+  if (tournament.status !== "ongoing") {
+    return { ok: false, reason: "La saisie est réservée aux tournois en cours." };
+  }
   return { ok: true, reason: null };
 }
 
