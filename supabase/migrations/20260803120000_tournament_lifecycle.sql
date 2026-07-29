@@ -257,13 +257,23 @@ drop policy "tournaments are readable unless deleted" on public.tournaments;
 create policy "tournaments are readable once public"
   on public.tournaments for select
   using (
-    deleted_at is null
-    and (
-      published_at is not null
-      or status in ('ongoing', 'archived')
-      or public.can_write_tournament(id)
+    public.is_super_admin()
+    or (
+      deleted_at is null
+      and (
+        published_at is not null
+        or status in ('ongoing', 'archived')
+        -- The organizer always sees their own, in any state. Tested on the
+        -- row's own columns rather than through can_write_tournament, for
+        -- two reasons. A policy that re-reads its own table can never be
+        -- satisfied by INSERT ... RETURNING — which is how PostgREST
+        -- inserts — because the row is not there yet when the check runs,
+        -- and creation fails with an opaque 42501. And reading is not
+        -- writing: a cancelled or finished tournament is frozen, not
+        -- erased, so it must not disappear from its own organizer's desk.
+        or (public.is_admin() and created_by = auth.uid())
+      )
     )
-    or public.is_super_admin()
   );
 
 -- ---------------------------------------------------------------------------
@@ -343,6 +353,12 @@ declare
   row_data public.tournaments;
 begin
   row_data := public.assert_tournament_writable(t_id);
+  -- A cancelled tournament keeps the page it was published on: that promise
+  -- would be worth nothing if unpublishing could still take it down.
+  if row_data.cancelled_at is not null then
+    raise exception 'Un tournoi annule ne se depublie pas : sa page reste en ligne.'
+      using errcode = 'ISC01';
+  end if;
   if row_data.started_at is not null or row_data.status <> 'draft' then
     raise exception 'Un tournoi demarre ne se depublie pas.' using errcode = 'ISC01';
   end if;
@@ -391,6 +407,14 @@ begin
   end if;
   if row_data.started_at is not null or row_data.status <> 'draft' then
     raise exception 'Ce tournoi a deja demarre.' using errcode = 'ISC01';
+  end if;
+
+  -- The round-1 draw below assumes nothing has been played. Guarding the
+  -- assumption turns a raw unique-violation on (tournament_id, number) into
+  -- a refusal that says what is wrong.
+  if exists (select 1 from public.rounds r where r.tournament_id = t_id) then
+    raise exception 'Ce tournoi a deja des rondes : il ne peut pas etre redemarre.'
+      using errcode = 'ISC01';
   end if;
 
   select count(*) into player_count

@@ -193,6 +193,30 @@ select pg_temp.check_equal('la purge emporte les appariements en cascade',
 -- --------------------------------------------------------------------------
 -- Life cycle
 -- --------------------------------------------------------------------------
+-- Everything above inserts as superuser, with RLS out of the way. That is
+-- exactly how a broken INSERT policy went unnoticed: creation has to be
+-- exercised as a real caller, with the RETURNING that PostgREST always adds.
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
+values ('cccccccc-0000-0000-0000-0000000000c0', 'Cree sous RLS', 'swiss', 3, 'draft',
+        '11111111-1111-1111-1111-111111111111', array['buchholz', 'wins'])
+returning id;
+select pg_temp.check_equal('un admin cree son tournoi et le relit',
+  (select count(*) from public.tournaments where id = 'cccccccc-0000-0000-0000-0000000000c0'), 1);
+reset role; reset test.uid;
+
+-- An organizer must keep sight of their own draft; another admin must not.
+set role authenticated;
+set test.uid = '22222222-2222-2222-2222-222222222222';
+select pg_temp.check_equal('un autre admin ne voit pas le brouillon d''autrui',
+  (select count(*) from public.tournaments where id = 'cccccccc-0000-0000-0000-0000000000c0'), 0);
+reset role; reset test.uid;
+
+set role anon;
+select pg_temp.check_refused('un anonyme ne peut pas appeler les transitions',
+  $$select public.publish_tournament('cccccccc-0000-0000-0000-0000000000c0')$$);
+reset role;
 insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
 values ('cccccccc-0000-0000-0000-0000000000c1', 'Cycle de vie', 'swiss', 3, 'draft',
         '11111111-1111-1111-1111-111111111111', array['buchholz', 'wins']);
@@ -305,6 +329,20 @@ select pg_temp.check_equal('aucun resultat nouveau sur un tournoi annule',
   (select count(*) from public.pairings
     where id = 'eeeeeeee-0000-0000-0000-0000000000c2' and result is null), 1);
 
+-- Cancelling freezes; it does not erase. The organizer keeps seeing their
+-- tournament, and the published page cannot be taken down afterwards.
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check_equal('le proprietaire voit encore son annule non publie',
+  (select count(*) from public.tournaments where id = 'cccccccc-0000-0000-0000-0000000000c3'), 1);
+select pg_temp.check_refused('un annule ne se depublie pas',
+  $$select public.unpublish_tournament('cccccccc-0000-0000-0000-0000000000c2')$$);
+reset role; reset test.uid;
+set role anon;
+select pg_temp.check_equal('sa page publique tient toujours',
+  (select count(*) from public.tournaments where id = 'cccccccc-0000-0000-0000-0000000000c2'), 1);
+reset role;
+
 select pg_temp.check_equal('le motif d''annulation est conserve',
   (select count(*) from public.tournaments
     where id = 'cccccccc-0000-0000-0000-0000000000c2'
@@ -319,6 +357,18 @@ insert into public.tournament_players(tournament_id, player_id) values
 set role authenticated;
 set test.uid = '11111111-1111-1111-1111-111111111111';
 select pg_temp.check_refused('un seul joueur ne suffit pas pour demarrer',
+  $$select public.start_tournament('cccccccc-0000-0000-0000-0000000000c4')$$);
+reset role; reset test.uid;
+
+-- Starting assumes an empty schedule; the guard says so instead of failing
+-- on a unique-violation deep in the insert.
+insert into public.rounds(tournament_id, number)
+values ('cccccccc-0000-0000-0000-0000000000c4', 1);
+insert into public.tournament_players(tournament_id, player_id)
+values ('cccccccc-0000-0000-0000-0000000000c4', 'aaaaaaaa-0000-0000-0000-000000000002');
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check_refused('un tournoi ayant deja des rondes ne redemarre pas',
   $$select public.start_tournament('cccccccc-0000-0000-0000-0000000000c4')$$);
 reset role; reset test.uid;
 

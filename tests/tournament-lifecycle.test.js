@@ -265,6 +265,38 @@ describe("la migration du cycle de vie", () => {
     assert.match(start.slice(0, 2000), /au moins deux joueurs actifs/);
   });
 
+  test("la politique de lecture n'interroge jamais sa propre table", () => {
+    // Une politique qui relit sa table ne peut pas etre satisfaite par un
+    // INSERT ... RETURNING — la ligne n'y est pas encore — et la creation
+    // echoue en 42501 opaque. Le test du proprietaire porte donc sur les
+    // colonnes de la ligne elle-meme.
+    const policy = migration.slice(
+      migration.indexOf('create policy "tournaments are readable once public"'),
+      migration.indexOf("-- Life-cycle transitions")
+    );
+    // On retire les commentaires avant de chercher l'appel : le commentaire
+    // qui explique le choix cite forcement la fonction ecartee.
+    const expression = policy.replace(/^\s*--.*$/gm, "");
+    assert.ok(
+      !expression.includes("can_write_tournament"),
+      "la politique SELECT ne doit pas appeler can_write_tournament"
+    );
+    assert.match(policy, /public\.is_admin\(\) and created_by = auth\.uid\(\)/);
+  });
+
+  test("depublier un annule est refuse cote serveur", () => {
+    const fn = migration.slice(
+      migration.indexOf("create or replace function public.unpublish_tournament"),
+      migration.indexOf("create or replace function public.start_tournament")
+    );
+    assert.match(fn, /row_data\.cancelled_at is not null/);
+  });
+
+  test("demarrer verifie qu'aucune ronde n'existe deja", () => {
+    const fn = migration.slice(migration.indexOf("create or replace function public.start_tournament"));
+    assert.match(fn.slice(0, 2500), /exists \(select 1 from public\.rounds r where r\.tournament_id = t_id\)/);
+  });
+
   test("un brouillon non publie n'est jamais lisible publiquement", () => {
     const policy = migration.slice(migration.indexOf('create policy "tournaments are readable once public"'));
     assert.match(policy.slice(0, 400), /published_at is not null/);

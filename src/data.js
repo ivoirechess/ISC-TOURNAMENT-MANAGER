@@ -566,18 +566,16 @@ export async function createRound({ tournamentId, number, pairings }) {
   return round;
 }
 
-/** Closes a tournament. Its standings stop moving from here on. */
+/**
+ * Closes a tournament. Its standings stop moving from here on.
+ *
+ * Routed through finish_tournament rather than a direct UPDATE: the plain
+ * update set `status` alone and left `finished_at` null, producing a
+ * tournament that reads as finished without the timestamp the life cycle
+ * defines it by.
+ */
 export async function archiveTournament(id) {
-  const client = await getClient();
-  const { data, error } = await client
-    .from("tournaments")
-    .update({ status: "archived" })
-    .eq("id", id)
-    .select("id, status");
-  if (error) {
-    throw new Error(editErrorMessage(error, "La cloture du tournoi a echoue."));
-  }
-  return assertUpdated(data, "Vous n'avez pas le droit de cloturer ce tournoi.");
+  return finishTournament(id);
 }
 
 /**
