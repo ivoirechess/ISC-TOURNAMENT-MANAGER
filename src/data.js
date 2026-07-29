@@ -256,7 +256,7 @@ export async function listTournaments() {
   const client = await getClient();
   const { data, error } = await client
     .from("tournaments")
-    .select("id, name, format, rounds_planned, status, created_at, tournament_players(count)")
+    .select("id, name, slug, format, rounds_planned, status, created_at, published_at, started_at, finished_at, cancelled_at, starts_at, city, tournament_players(count)")
     // RLS hides deleted tournaments from everyone but a super_admin, who
     // would otherwise see them mixed into the public listings.
     .is("deleted_at", null)
@@ -367,6 +367,57 @@ export async function updatePairingResult(pairingId, result) {
     throw new Error(editErrorMessage(error, "La correction du resultat a echoue."));
   }
   return assertUpdated(data, "Vous n'avez pas le droit de corriger ce resultat.");
+}
+
+// ---------------------------------------------------------------------------
+// Life-cycle transitions
+// ---------------------------------------------------------------------------
+// Each one is a database function rather than an UPDATE: several must check
+// state and write atomically, and unpublishing has to hide the row from its
+// own author, which PostgreSQL forbids through an UPDATE under RLS. The
+// functions re-check ownership themselves.
+
+async function callTransition(name, args, fallback) {
+  const client = await getClient();
+  const { data, error } = await client.rpc(name, args);
+  if (error) {
+    // The transitions raise ISC01 with French messages meant to be read;
+    // editErrorMessage passes those through and keeps the rest generic.
+    throw new Error(editErrorMessage(error, fallback));
+  }
+  return data;
+}
+
+/** Makes a draft public. Returns the publication timestamp. */
+export async function publishTournament(id) {
+  return callTransition("publish_tournament", { t_id: id }, "La publication a echoue.");
+}
+
+/** Takes an announced tournament back off the site. Only before it starts. */
+export async function unpublishTournament(id) {
+  return callTransition("unpublish_tournament", { t_id: id }, "La depublication a echoue.");
+}
+
+/**
+ * Starts the tournament: state, timestamps and — in Swiss — round 1 with
+ * its pairings, all in one transaction. Returns the active player count.
+ */
+export async function startTournament(id) {
+  return callTransition("start_tournament", { t_id: id }, "Le demarrage a echoue.");
+}
+
+/** Closes a running tournament; its standings become final. */
+export async function finishTournament(id) {
+  return callTransition("finish_tournament", { t_id: id }, "La cloture a echoue.");
+}
+
+/** Cancels a tournament, with an optional reason shown on its page. */
+export async function cancelTournament(id, reason) {
+  return callTransition(
+    "cancel_tournament",
+    { t_id: id, reason: reason ?? null },
+    "L'annulation a echoue."
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -567,7 +618,9 @@ export async function getTournamentResults(id) {
   const { data, error } = await client
     .from("tournaments")
     .select(
-      "id, name, format, rounds_planned, status, created_at, tiebreaks, " +
+      "id, name, slug, format, rounds_planned, status, created_at, tiebreaks, " +
+      "published_at, started_at, finished_at, cancelled_at, cancellation_reason, " +
+      "starts_at, ends_at, timezone, venue_name, city, organizer_name, description, " +
       "tournament_players(withdrawn, players(id, name)), " +
       "rounds(number, pairings(id, board, white_player_id, black_player_id, result))"
     )
