@@ -2,7 +2,7 @@
 // Routes:
 //   #/                   home (public directory placeholder)
 //   #/nouveau-tournoi    tournament creation (admins only, else redirected)
-//   #/tournoi/<id>       tournament view (placeholder for now)
+//   #/tournoi/<id>       tournament view: pairings, results, live
 //   #/tournoi/<id>/classement  standings, public, once play has started
 //   #/tournoi/<id>/modifier    editing, owner or super_admin only
 //   #/corbeille                deleted tournaments, super_admin only
@@ -13,7 +13,8 @@ import { openHome } from "./home.js";
 import { openStandings } from "./standings.js";
 import { initTournamentEdit, openTournamentEdit } from "./tournament-edit.js";
 import { openTrash } from "./trash.js";
-import { getCurrentRole, getTournament, onAuthChange } from "../data.js";
+import { openRounds, closeRounds } from "./rounds.js";
+import { getCurrentRole, getTournamentResults, onAuthChange } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { FORMATS } from "../tournament-validation.js";
 import { STATUS_LABELS } from "../tournament-list.js";
@@ -52,12 +53,15 @@ async function showTournament(id) {
   el("tournament-title").textContent = "Chargement…";
   el("tournament-meta").textContent = "";
   el("tournament-players").innerHTML = "";
+  el("rounds-board").innerHTML = "";
+  el("rounds-tabs").innerHTML = "";
   try {
-    const tournament = await getTournament(id);
-    if (!tournament) {
+    const payload = await getTournamentResults(id);
+    if (!payload) {
       el("tournament-title").textContent = "Tournoi introuvable";
       return;
     }
+    const { tournament } = payload;
     el("tournament-title").textContent = tournament.name;
     const formatLabel = FORMATS.find((f) => f.value === tournament.format)?.label ?? tournament.format;
     const statusLabel = STATUS_LABELS[tournament.status] ?? tournament.status;
@@ -91,11 +95,13 @@ async function showTournament(id) {
     }
 
     const list = el("tournament-players");
-    for (const tp of tournament.tournament_players ?? []) {
+    for (const player of payload.state.players) {
       const item = document.createElement("li");
-      item.textContent = tp.players?.name ?? tp.player_id;
+      item.textContent = player.name;
       list.append(item);
     }
+
+    await openRounds(payload);
   } catch (err) {
     el("tournament-title").textContent = err.message;
   }
@@ -103,6 +109,8 @@ async function showTournament(id) {
 
 async function route() {
   const hash = window.location.hash;
+  // Leaving the tournament view drops its realtime channel.
+  if (!/^#\/tournoi\/[^/]+$/.test(hash)) closeRounds();
 
   if (hash === "#/nouveau-tournoi") {
     // Interface guard only — RLS is the real protection. Rely on the role

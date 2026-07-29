@@ -448,6 +448,114 @@ export async function clearPairingResult(pairingId) {
   return assertUpdated(data, "Vous n'avez pas le droit d'effacer ce resultat.");
 }
 
+// ---------------------------------------------------------------------------
+// Entering results
+// ---------------------------------------------------------------------------
+
+/**
+ * Records a result on a pairing, whether or not it already had one. The
+ * trigger lets only `result` move, so the pairing itself cannot shift.
+ */
+export async function setPairingResult(pairingId, result) {
+  if (!GAME_RESULTS.includes(result)) {
+    throw new Error("Resultat invalide.");
+  }
+  const client = await getClient();
+  const { data, error } = await client
+    .from("pairings")
+    .update({ result })
+    .eq("id", pairingId)
+    .select("id, result");
+  if (error) {
+    throw new Error(editErrorMessage(error, "L'enregistrement du resultat a echoue."));
+  }
+  return assertUpdated(data, "Vous n'avez pas le droit de saisir ce resultat.");
+}
+
+/**
+ * Writes a freshly drawn round with its pairings.
+ * Rolls the round back if the pairings cannot follow, so a round never
+ * exists without the games it was drawn for.
+ * @param {{tournamentId: string, number: number, pairings: Array}} round
+ */
+export async function createRound({ tournamentId, number, pairings }) {
+  const client = await getClient();
+  const { data: round, error } = await client
+    .from("rounds")
+    .insert({ tournament_id: tournamentId, number })
+    .select("id, number")
+    .single();
+  if (error) {
+    throw new Error(editErrorMessage(error, "La creation de la ronde a echoue."));
+  }
+
+  const rows = pairings.map((pairing, index) => ({
+    round_id: round.id,
+    white_player_id: pairing.white,
+    black_player_id: pairing.black,
+    result: pairing.result ?? null,
+    board: index + 1,
+  }));
+  const { error: pairingsError } = await client.from("pairings").insert(rows);
+  if (pairingsError) {
+    const { error: cleanupError } = await client
+      .from("rounds")
+      .delete()
+      .eq("id", round.id)
+      .select("id");
+    throw new Error(
+      editErrorMessage(
+        pairingsError,
+        cleanupError
+          ? "Les appariements n'ont pas pu etre enregistres, et la ronde vide n'a pas pu etre retiree."
+          : "Les appariements n'ont pas pu etre enregistres : la ronde n'a pas ete creee."
+      )
+    );
+  }
+  return round;
+}
+
+/** Closes a tournament. Its standings stop moving from here on. */
+export async function archiveTournament(id) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .update({ status: "archived" })
+    .eq("id", id)
+    .select("id, status");
+  if (error) {
+    throw new Error(editErrorMessage(error, "La cloture du tournoi a echoue."));
+  }
+  return assertUpdated(data, "Vous n'avez pas le droit de cloturer ce tournoi.");
+}
+
+/**
+ * Calls back whenever a pairing changes, so spectators see results appear
+ * without reloading.
+ *
+ * Realtime filters can only name a column of the table being watched, and
+ * `pairings` carries `round_id`, not `tournament_id`. Rather than guess, the
+ * subscription listens to the table and the caller reloads its own
+ * tournament — cheap at club scale, and it cannot miss an event.
+ *
+ * Realtime applies the same RLS policies as any read, so a spectator is
+ * only ever pushed rows they could already fetch.
+ *
+ * @returns {Promise<() => void>} unsubscribe
+ */
+export async function onPairingsChange(callback) {
+  const client = await getClient();
+  const channel = client
+    .channel("pairings-live")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "pairings" },
+      (payload) => callback(payload)
+    )
+    .subscribe();
+  return () => client.removeChannel(channel);
+}
+
 /**
  * A tournament with everything the standings need, reshaped into the state
  * the engines expect: { players: [{id, name}], rounds: [{pairings}] }.
@@ -460,7 +568,7 @@ export async function getTournamentResults(id) {
     .from("tournaments")
     .select(
       "id, name, format, rounds_planned, status, created_at, tiebreaks, " +
-      "tournament_players(players(id, name)), " +
+      "tournament_players(withdrawn, players(id, name)), " +
       "rounds(number, pairings(id, board, white_player_id, black_player_id, result))"
     )
     .eq("id", id)
@@ -471,10 +579,15 @@ export async function getTournamentResults(id) {
   }
   if (!data) return null;
 
+  // `withdrawn` travels with the player: the pairing engine must not draw a
+  // player who has left the tournament.
   const players = (data.tournament_players ?? [])
-    .map((entry) => entry.players)
-    .filter(Boolean)
-    .map((player) => ({ id: player.id, name: player.name }));
+    .filter((entry) => entry.players)
+    .map((entry) => ({
+      id: entry.players.id,
+      name: entry.players.name,
+      withdrawn: entry.withdrawn === true,
+    }));
 
   // PostgREST does not promise an order on embedded rows, so both levels are
   // sorted here: the cumulative tie-break reads rounds in sequence.

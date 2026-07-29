@@ -196,6 +196,27 @@
       border-bottom: 1px solid var(--line);
     }
     .trash-actions { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
+    .round-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.6rem; }
+    .round-tab { font-size: 0.85rem; padding: 0.3rem 0.7rem; }
+    .round-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pairing-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .board-number {
+      min-width: 1.6rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: right;
+    }
+    .pairing-names { flex: 1; }
+    .entry-group { display: flex; gap: 0.25rem; }
+    button.entry { padding: 0.2rem 0.55rem; font-size: 0.85rem; min-width: 3rem; }
+    button.entry.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .result-shown { min-width: 5rem; text-align: right; color: var(--muted); font-size: 0.9rem; }
   </style>
 </head>
 <body>
@@ -278,9 +299,15 @@
       <h2 id="tournament-title"></h2>
       <p id="tournament-meta" class="muted"></p>
       <p id="tournament-standings-link"></p>
+      <h3>Rondes</h3>
+      <div id="rounds-tabs" class="round-tabs"></div>
+      <p id="rounds-progress" class="muted"></p>
+      <div id="rounds-board"></div>
+      <p id="rounds-next"></p>
+      <p id="rounds-feedback"></p>
+
       <h3>Joueurs inscrits</h3>
       <ul id="tournament-players"></ul>
-      <p class="notice">Vue détaillée du tournoi — saisie des rondes à venir.</p>
       <p><a href="#/">← Retour à l'accueil</a></p>
     </section>
 
