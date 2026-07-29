@@ -110,6 +110,35 @@
       background: #fff;
     }
     .player-row { display: block; padding: 0.15rem 0; }
+    #view-home h2 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+    #home-actions { margin-bottom: 0.5rem; }
+    .tournament-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+      gap: 0.75rem;
+    }
+    .tournament-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: inherit;
+      text-decoration: none;
+    }
+    .tournament-card:hover { border-color: var(--accent); }
+    .status {
+      align-self: flex-start;
+      font-size: 0.75rem;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .status-ongoing { border-color: var(--accent); color: var(--accent); }
+    .status-draft { border-style: dashed; }
   </style>
 </head>
 <body>
@@ -121,14 +150,16 @@
 
   <main>
     <section id="view-home">
-      <p class="notice">Annuaire public des tournois — à venir.</p>
+      <!-- The create button is injected here by src/ui/home.js for admins
+           only: absent from the DOM for the public, not just hidden. -->
+      <div id="home-actions"></div>
+      <p id="home-error" class="error"></p>
 
-      <!-- Organizer mode. Visibility is cosmetic; RLS decides what
-           actually gets written. -->
-      <div class="admin-only">
-        <p class="notice admin-note">Mode organisateur actif.</p>
-        <p><a class="button-link" href="#/nouveau-tournoi">Créer un tournoi</a></p>
-      </div>
+      <h2>En cours</h2>
+      <div id="current-tournaments" class="tournament-grid"></div>
+
+      <h2>Archives</h2>
+      <div id="archived-tournaments" class="tournament-grid"></div>
     </section>
 
     <section id="view-new-tournament" hidden>

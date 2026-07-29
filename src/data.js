@@ -187,6 +187,23 @@ export async function createTournament({ name, format, roundsPlanned, playerIds 
   return tournament;
 }
 
+/**
+ * All tournaments with their registered-player count, for the public home
+ * page. tournament_players comes back as a PostgREST count aggregate:
+ * [{ count: n }].
+ */
+export async function listTournaments() {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .select("id, name, format, rounds_planned, status, created_at, tournament_players(count)")
+    .order("created_at", { ascending: false });
+  if (error) {
+    throw new Error("Impossible de charger la liste des tournois.");
+  }
+  return data ?? [];
+}
+
 /** One tournament with its registered players, or null when not found. */
 export async function getTournament(id) {
   const client = await getClient();
