@@ -35,7 +35,7 @@ function setFeedback(id, message, isError) {
 
 function renderRoundsSection() {
   const { tournament } = current;
-  const editable = canEditRoundsPlanned(tournament);
+  const editable = canEditRoundsPlanned(tournament, current.state.rounds.length);
   const input = el("edit-rounds");
   input.value = String(tournament.rounds_planned);
   input.disabled = !editable.ok;
@@ -147,7 +147,12 @@ async function onSaveRounds(event) {
   event.preventDefault();
   const roundsPlanned = Number.parseInt(el("edit-rounds").value, 10);
   const playerCount = current.state.players.length;
-  const check = validateRoundsPlannedEdit(current.tournament, roundsPlanned, playerCount);
+  const check = validateRoundsPlannedEdit(
+    current.tournament,
+    roundsPlanned,
+    playerCount,
+    current.state.rounds.length
+  );
   if (!check.ok) {
     setFeedback("edit-rounds-feedback", check.errors.join(" "), true);
     return;

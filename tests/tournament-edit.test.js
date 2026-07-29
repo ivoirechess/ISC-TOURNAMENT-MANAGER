@@ -40,6 +40,20 @@ describe("canEditRoundsPlanned", () => {
     }
   });
 
+  test("refuse des qu'une ronde existe, meme en brouillon", () => {
+    // Test de fond : `status` seul ne suffirait pas, le proprietaire pouvant
+    // repasser son tournoi en brouillon pour rouvrir la regle.
+    const result = canEditRoundsPlanned(tournament({ status: "draft" }), 1);
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /déjà des rondes/);
+  });
+
+  test("un retour en brouillon ne rouvre pas la modification", () => {
+    const reverted = tournament({ status: "draft" });
+    assert.equal(canEditRoundsPlanned(reverted, 3).ok, false);
+    assert.equal(canEditRoundsPlanned(reverted, 0).ok, true);
+  });
+
   test("refuse sur les formats en cercle, meme en brouillon", () => {
     // Le calendrier entier est deja ecrit : deplacer la cible le desyncroniserait.
     for (const format of ["round_robin", "double_round_robin"]) {
@@ -49,10 +63,10 @@ describe("canEditRoundsPlanned", () => {
     }
   });
 
-  test("le motif du format prime sur celui du statut", () => {
-    // Un round-robin lance cumule les deux refus : le message doit rester
-    // celui qui explique la cause structurelle.
-    const result = canEditRoundsPlanned(tournament({ format: "round_robin", status: "ongoing" }));
+  test("le motif du format prime, dans le meme ordre que le trigger", () => {
+    // Un round-robin lance cumule les refus : le message doit rester celui
+    // qui explique la cause structurelle, cote client comme cote serveur.
+    const result = canEditRoundsPlanned(tournament({ format: "round_robin", status: "ongoing" }), 5);
     assert.equal(result.ok, false);
     assert.match(result.reason, /toutes les rencontres/);
   });
@@ -150,8 +164,11 @@ describe("les regles tiennent aussi cote serveur", () => {
     "utf8"
   );
 
-  test("le nombre de rondes est gele hors brouillon", () => {
+  test("le nombre de rondes est gele des qu'une ronde existe", () => {
+    // La regle porte sur la realite (des rondes existent), pas seulement sur
+    // le statut, qui peut etre remis a 'draft' par le proprietaire.
     assert.match(migration, /rounds_planned is distinct from old\.rounds_planned/);
+    assert.match(migration, /from public\.rounds r where r\.tournament_id = old\.id/);
     assert.match(migration, /old\.status <> 'draft'/);
   });
 
@@ -159,17 +176,33 @@ describe("les regles tiennent aussi cote serveur", () => {
     assert.match(migration, /old\.format in \('round_robin', 'double_round_robin'\)/);
   });
 
-  test("un appariement ne peut pas etre deplace", () => {
-    for (const column of ["round_id", "white_player_id", "black_player_id", "board"]) {
-      assert.ok(
-        migration.includes(`new.${column} is distinct from old.${column}`),
-        `${column} non protege par le trigger`
-      );
-    }
+  test("un appariement est protege en liste blanche, pas colonne par colonne", () => {
+    // La liste noire laissait passer toute colonne ajoutee plus tard. La
+    // forme retenue reconstruit la ligne attendue a partir de OLD et ne
+    // laisse passer que `result`.
+    assert.match(migration, /expected := old;/);
+    assert.match(migration, /expected\.result := new\.result;/);
+    assert.match(migration, /new is distinct from expected/);
+  });
+
+  test("les refus portent un SQLSTATE applicatif, pas une erreur Postgres brute", () => {
+    // src/data.js ne remonte le message a l'utilisateur que pour ce code :
+    // toute autre erreur reste generique, pour ne pas exposer de noms de
+    // relations ou de contraintes.
+    const raises = [...migration.matchAll(/raise exception/g)].length;
+    const codes = [...migration.matchAll(/errcode = 'ISC01'/g)].length;
+    assert.equal(raises, codes, "chaque refus doit porter le SQLSTATE ISC01");
+    assert.ok(raises >= 4);
+  });
+
+  test("les fonctions trigger epinglent leur search_path", () => {
+    const functions = [...migration.matchAll(/language plpgsql\s+set search_path = ''/g)];
+    assert.equal(functions.length, 2, "les deux fonctions doivent epingler search_path");
   });
 
   test("les deux triggers sont bien poses", () => {
-    assert.match(migration, /create trigger tournaments_enforce_edit_rules\s+before update on public\.tournaments/);
-    assert.match(migration, /create trigger pairings_enforce_edit_rules\s+before update on public\.pairings/);
+    // `create or replace` pour que rejouer la migration reste sans effet.
+    assert.match(migration, /create or replace trigger tournaments_enforce_edit_rules\s+before update on public\.tournaments/);
+    assert.match(migration, /create or replace trigger pairings_enforce_edit_rules\s+before update on public\.pairings/);
   });
 });

@@ -28,15 +28,19 @@ export function validateTournamentName(name) {
 }
 
 /**
- * Whether the planned round count may still be changed.
+ * Whether the planned round count may still be changed. The checks run in
+ * the same order as the database trigger, so the reason shown on screen is
+ * the reason the server would give.
  *
- * Two separate reasons to refuse, each reported on its own:
- *   - the tournament has left the draft stage: rounds are already paired
- *     and played, so moving the target would contradict what happened;
+ * Three separate grounds for refusing:
  *   - the format is a round-robin: its length is derived from the field and
- *     the whole schedule is already written, so the number is not a choice.
+ *     the whole schedule is already written, so the number is not a choice;
+ *   - the tournament already has rounds: the target they were built against
+ *     cannot move under them. This is the substantive test — `status` alone
+ *     would not do, since it can be set back to 'draft';
+ *   - failing that, the tournament has simply left the draft stage.
  */
-export function canEditRoundsPlanned(tournament) {
+export function canEditRoundsPlanned(tournament, roundCount = 0) {
   if (!tournament) return { ok: false, reason: "Tournoi introuvable." };
   if (isRoundRobin(tournament.format)) {
     return {
@@ -44,6 +48,14 @@ export function canEditRoundsPlanned(tournament) {
       reason:
         "Ce format joue toutes les rencontres : son nombre de rondes découle " +
         "de l'effectif et ne se modifie pas.",
+    };
+  }
+  if (roundCount > 0) {
+    return {
+      ok: false,
+      reason:
+        "Le tournoi a déjà des rondes : le nombre de rondes prévues ne peut " +
+        "plus changer, il ne concorderait plus avec ce qui a été joué.",
     };
   }
   if (tournament.status !== "draft") {
@@ -63,9 +75,10 @@ export function canEditRoundsPlanned(tournament) {
  * @param {object} tournament the row being edited
  * @param {number} roundsPlanned the requested value
  * @param {number} playerCount registered players
+ * @param {number} roundCount rounds already recorded for this tournament
  */
-export function validateRoundsPlannedEdit(tournament, roundsPlanned, playerCount) {
-  const editable = canEditRoundsPlanned(tournament);
+export function validateRoundsPlannedEdit(tournament, roundsPlanned, playerCount, roundCount = 0) {
+  const editable = canEditRoundsPlanned(tournament, roundCount);
   if (!editable.ok) return { ok: false, errors: [editable.reason] };
 
   if (!Number.isInteger(roundsPlanned) || roundsPlanned < 1) {

@@ -9,7 +9,7 @@ import { getSupabaseEnv } from "./config.js";
 import { generateSchedule } from "./roundrobin.js";
 import { isRoundRobin } from "./tournament-validation.js";
 import { validateTiebreakSelection } from "./tiebreaks.js";
-import { validateTournamentName } from "./tournament-edit.js";
+import { validateTournamentName, GAME_RESULTS } from "./tournament-edit.js";
 
 // Version pinned exactly: an unpinned tag would let the CDN swap the code
 // that handles organizer passwords without any visible change here.
@@ -297,6 +297,15 @@ function assertUpdated(rows, forbiddenMessage) {
   return rows[0];
 }
 
+// Our own triggers raise SQLSTATE ISC01 with a French message meant to be
+// read. Anything else is a raw PostgreSQL error naming relations and
+// constraints, so it gets the generic wording every other call here uses.
+const APP_ERROR_CODE = "ISC01";
+
+function editErrorMessage(error, fallback) {
+  return error?.code === APP_ERROR_CODE && error.message ? error.message : fallback;
+}
+
 /** Renames a tournament. Allowed at any stage. */
 export async function renameTournament(id, name) {
   const check = validateTournamentName(name);
@@ -315,10 +324,13 @@ export async function renameTournament(id, name) {
 }
 
 /**
- * Changes the planned round count. The trigger refuses it outside the draft
- * stage and on round-robin formats, so a stale screen cannot force it.
+ * Changes the planned round count. A trigger refuses it once the tournament
+ * has rounds and on round-robin formats, so a stale screen cannot force it.
  */
 export async function updateRoundsPlanned(id, roundsPlanned) {
+  if (!Number.isInteger(roundsPlanned) || roundsPlanned < 1) {
+    throw new Error("Le nombre de rondes doit etre un entier superieur ou egal a 1.");
+  }
   const client = await getClient();
   const { data, error } = await client
     .from("tournaments")
@@ -326,8 +338,9 @@ export async function updateRoundsPlanned(id, roundsPlanned) {
     .eq("id", id)
     .select("id, rounds_planned");
   if (error) {
-    // The trigger raises check_violation with a message already in French.
-    throw new Error(error.message || "La modification du nombre de rondes a echoue.");
+    throw new Error(
+      editErrorMessage(error, "La modification du nombre de rondes a echoue.")
+    );
   }
   return assertUpdated(data, "Vous n'avez pas le droit de modifier ce tournoi.");
 }
@@ -337,6 +350,11 @@ export async function updateRoundsPlanned(id, roundsPlanned) {
  * rejects any attempt to move the pairing itself.
  */
 export async function updatePairingResult(pairingId, result) {
+  // Checked here as well as on screen: a bye is not a game, and clearing a
+  // result is not what "correcting an entry" means.
+  if (!GAME_RESULTS.includes(result)) {
+    throw new Error("Resultat invalide.");
+  }
   const client = await getClient();
   const { data, error } = await client
     .from("pairings")
@@ -344,7 +362,7 @@ export async function updatePairingResult(pairingId, result) {
     .eq("id", pairingId)
     .select("id, result");
   if (error) {
-    throw new Error(error.message || "La correction du resultat a echoue.");
+    throw new Error(editErrorMessage(error, "La correction du resultat a echoue."));
   }
   return assertUpdated(data, "Vous n'avez pas le droit de corriger ce resultat.");
 }
