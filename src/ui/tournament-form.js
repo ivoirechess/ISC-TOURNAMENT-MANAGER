@@ -187,6 +187,8 @@ function resetForm() {
   el("t-errors").textContent = "";
   el("t-warnings").textContent = "";
   refreshSelectionCount();
+  // Clears a leftover locked rounds field from a round-robin creation.
+  syncRoundsField();
 }
 
 /** Called once at startup. */

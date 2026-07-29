@@ -106,6 +106,11 @@ indépendamment des résultats. Aucune impasse ne peut donc survenir — c'est
 une propriété de construction, vérifiée par les tests plutôt qu'affirmée.
 C'est aussi pourquoi ce format est la réponse au blocage du suisse.
 
+Attention : l'invariant « un seul bye par tournoi » ci-dessous appartient au
+**suisse**. Ici, à effectif impair, chaque joueur est exempt une fois par
+tour — donc **deux fois en aller-retour**. C'est l'usage normal et sans
+effet sur le classement, chacun recevant le même point supplémentaire.
+
 Le calendrier étant entièrement déterminé, il est généré et enregistré
 **dès la création** du tournoi (`rounds` + `pairings`), contrairement au
 suisse dont chaque ronde dépend des résultats de la précédente.

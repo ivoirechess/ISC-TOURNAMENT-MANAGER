@@ -152,12 +152,22 @@ export async function createTournament({ name, format, roundsPlanned, playerIds 
     throw new Error("Connectez-vous pour creer un tournoi.");
   }
 
+  // Built before the first write on purpose: generateSchedule rejects an
+  // invalid field by throwing, and an exception raised after the tournament
+  // row exists would escape the rollback below and strand a ghost draft.
+  const schedule = isRoundRobin(format)
+    ? generateSchedule(playerIds, { doubled: format === "double_round_robin" })
+    : null;
+
   const { data: tournament, error } = await client
     .from("tournaments")
     .insert({
       name: name.trim(),
       format,
-      rounds_planned: roundsPlanned,
+      // For circle formats the schedule decides, not the caller: browser-side
+      // validation is a convenience, so trusting roundsPlanned here would let
+      // a tournament advertise 3 rounds while 9 are actually written.
+      rounds_planned: schedule ? schedule.length : roundsPlanned,
       status: "draft",
       created_by: user.id,
     })
@@ -170,12 +180,16 @@ export async function createTournament({ name, format, roundsPlanned, playerIds 
   // Rolls the whole creation back; rounds and pairings go with the
   // tournament through ON DELETE CASCADE.
   const abort = async (message) => {
-    const { error: cleanupError } = await client
+    // Ask for the deleted rows back: under RLS a forbidden DELETE is not an
+    // error, it simply removes nothing — an empty result is the only way to
+    // tell that the cleanup did not happen.
+    const { data: deleted, error: cleanupError } = await client
       .from("tournaments")
       .delete()
-      .eq("id", tournament.id);
+      .eq("id", tournament.id)
+      .select("id");
     throw new Error(
-      cleanupError
+      cleanupError || !deleted?.length
         ? `${message} Le brouillon n'a pas pu etre supprime : retrouvez-le sur ` +
           "la page d'accueil pour le supprimer ou reessayer."
         : `${message} Le tournoi n'a pas ete cree.`
@@ -191,15 +205,10 @@ export async function createTournament({ name, format, roundsPlanned, playerIds 
     await abort("L'inscription des joueurs a echoue.");
   }
 
-  // Round-robin formats are fully determined by the field: the circle
-  // method yields the entire schedule up front, so it is written now. Swiss
-  // pairings depend on results and are drawn round by round instead
-  // (src/swiss.js, Phase 4).
-  if (isRoundRobin(format)) {
-    const schedule = generateSchedule(playerIds, {
-      doubled: format === "double_round_robin",
-    });
-
+  // Round-robin formats are fully determined by the field, so the schedule
+  // built above is written now. Swiss pairings depend on results and are
+  // drawn round by round instead (src/swiss.js, Phase 4).
+  if (schedule) {
     const { data: rounds, error: roundsError } = await client
       .from("rounds")
       .insert(schedule.map((_, index) => ({
