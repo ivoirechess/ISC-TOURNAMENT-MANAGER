@@ -190,16 +190,14 @@ export async function createTournament({ name, format, roundsPlanned, playerIds,
   // Rolls the whole creation back; rounds and pairings go with the
   // tournament through ON DELETE CASCADE.
   const abort = async (message) => {
-    // Ask for the deleted rows back: under RLS a forbidden DELETE is not an
-    // error, it simply removes nothing — an empty result is the only way to
-    // tell that the cleanup did not happen.
-    const { data: deleted, error: cleanupError } = await client
-      .from("tournaments")
-      .delete()
-      .eq("id", tournament.id)
-      .select("id");
+    // An admin has no real DELETE on tournaments any more: rolling back a
+    // half-created tournament marks it deleted instead, which hides it from
+    // everyone. A super_admin clears it from the trash.
+    const { error: cleanupError } = await client.rpc("soft_delete_tournament", {
+      t_id: tournament.id,
+    });
     throw new Error(
-      cleanupError || !deleted?.length
+      cleanupError
         ? `${message} Le brouillon n'a pas pu etre supprime : retrouvez-le sur ` +
           "la page d'accueil pour le supprimer ou reessayer."
         : `${message} Le tournoi n'a pas ete cree.`
@@ -259,6 +257,9 @@ export async function listTournaments() {
   const { data, error } = await client
     .from("tournaments")
     .select("id, name, format, rounds_planned, status, created_at, tournament_players(count)")
+    // RLS hides deleted tournaments from everyone but a super_admin, who
+    // would otherwise see them mixed into the public listings.
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) {
     throw new Error("Impossible de charger la liste des tournois.");
@@ -273,6 +274,7 @@ export async function getTournament(id) {
     .from("tournaments")
     .select("id, name, format, rounds_planned, status, created_at, tiebreaks, tournament_players(player_id, withdrawn, players(id, name, club, rating_std))")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) {
     throw new Error("Impossible de charger ce tournoi.");
@@ -367,6 +369,86 @@ export async function updatePairingResult(pairingId, result) {
   return assertUpdated(data, "Vous n'avez pas le droit de corriger ce resultat.");
 }
 
+// ---------------------------------------------------------------------------
+// Deletion
+// ---------------------------------------------------------------------------
+// An admin never destroys a tournament: deleting marks `deleted_at`, which
+// hides it from everyone including its own owner. Only a super_admin sees
+// the trash, restores from it, or clears it for good.
+
+/**
+ * Marks a tournament deleted. Goes through a database function rather than
+ * an UPDATE, because PostgreSQL refuses a write that would make the row
+ * invisible to its own author — see the migration for the full reason. The
+ * function re-checks ownership itself, so this is no less guarded.
+ */
+export async function softDeleteTournament(id) {
+  const client = await getClient();
+  const { error } = await client.rpc("soft_delete_tournament", { t_id: id });
+  if (error) {
+    throw new Error(editErrorMessage(error, "La suppression a echoue."));
+  }
+}
+
+/** Tournaments in the trash. Only a super_admin can read these rows. */
+export async function listDeletedTournaments() {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .select("id, name, format, rounds_planned, status, created_at, deleted_at")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (error) {
+    throw new Error("Impossible de charger la corbeille.");
+  }
+  return data ?? [];
+}
+
+/** Puts a tournament back. Super_admin only, enforced by RLS. */
+export async function restoreTournament(id) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .update({ deleted_at: null })
+    .eq("id", id)
+    .select("id, name");
+  if (error) {
+    throw new Error(editErrorMessage(error, "La restauration a echoue."));
+  }
+  return assertUpdated(data, "Seul un super-admin peut restaurer un tournoi.");
+}
+
+/**
+ * Destroys a tournament for good, with its rounds and pairings through the
+ * cascade. Super_admin only: there is no DELETE policy for an admin.
+ */
+export async function purgeTournament(id) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) {
+    throw new Error(editErrorMessage(error, "La suppression definitive a echoue."));
+  }
+  return assertUpdated(data, "Seul un super-admin peut supprimer definitivement un tournoi.");
+}
+
+/** Empties an entered result. Only meaningful while the tournament runs. */
+export async function clearPairingResult(pairingId) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("pairings")
+    .update({ result: null })
+    .eq("id", pairingId)
+    .select("id, result");
+  if (error) {
+    throw new Error(editErrorMessage(error, "L'effacement du resultat a echoue."));
+  }
+  return assertUpdated(data, "Vous n'avez pas le droit d'effacer ce resultat.");
+}
+
 /**
  * A tournament with everything the standings need, reshaped into the state
  * the engines expect: { players: [{id, name}], rounds: [{pairings}] }.
@@ -383,6 +465,7 @@ export async function getTournamentResults(id) {
       "rounds(number, pairings(id, board, white_player_id, black_player_id, result))"
     )
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) {
     throw new Error("Impossible de charger le classement de ce tournoi.");

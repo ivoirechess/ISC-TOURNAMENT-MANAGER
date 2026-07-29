@@ -71,6 +71,15 @@ async function renderCreateButton() {
   link.href = "#/nouveau-tournoi";
   link.textContent = "Créer un tournoi";
   slot.append(link);
+
+  // The trash belongs to super_admins alone; the link is added to the DOM
+  // only for them, and the rows are unreadable for anyone else regardless.
+  if (role === "super_admin") {
+    const trash = document.createElement("a");
+    trash.href = "#/corbeille";
+    trash.textContent = "Corbeille";
+    slot.append(" ", trash);
+  }
 }
 
 /** Called by the router each time the home view is shown. */

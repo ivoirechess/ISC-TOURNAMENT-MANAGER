@@ -5,12 +5,14 @@
 //   #/tournoi/<id>       tournament view (placeholder for now)
 //   #/tournoi/<id>/classement  standings, public, once play has started
 //   #/tournoi/<id>/modifier    editing, owner or super_admin only
+//   #/corbeille                deleted tournaments, super_admin only
 
 import { initAuth } from "./auth.js";
 import { initTournamentForm, openTournamentForm } from "./tournament-form.js";
 import { openHome } from "./home.js";
 import { openStandings } from "./standings.js";
 import { initTournamentEdit, openTournamentEdit } from "./tournament-edit.js";
+import { openTrash } from "./trash.js";
 import { getCurrentRole, getTournament, onAuthChange } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { FORMATS } from "../tournament-validation.js";
@@ -36,6 +38,7 @@ const VIEWS = [
   "view-tournament",
   "view-tournament-edit",
   "view-standings",
+  "view-trash",
 ];
 
 function showView(id) {
@@ -116,6 +119,16 @@ async function route() {
     }
     showView("view-new-tournament");
     await openTournamentForm();
+    return;
+  }
+
+  if (hash === "#/corbeille") {
+    showView("view-trash");
+    // Not a super_admin: back home. The rows are unreadable for anyone else
+    // anyway — this only avoids showing an empty screen with no explanation.
+    if (!(await openTrash())) {
+      window.location.hash = "#/";
+    }
     return;
   }
 
