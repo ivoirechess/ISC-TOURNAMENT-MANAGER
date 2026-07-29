@@ -38,16 +38,25 @@ export function progressLabel(round) {
 
 /**
  * Whether results may be entered on this round at all.
- * Entry belongs to a running tournament: a draft has not started, and an
- * archive is closed.
+ *
+ * The one thing that opens entry is `status === 'ongoing'` — never the mere
+ * presence of rounds in the database. A round-robin holds its whole
+ * calendar from the moment it is created, so keying on the rounds would open
+ * every board of a tournament that has not officially started.
+ *
+ * Written as an allow-list for the same reason: a status added later stays
+ * closed until someone decides otherwise, rather than falling through.
  */
 export function canEnterResults(tournament) {
   if (!tournament) return { ok: false, reason: "Tournoi introuvable." };
-  if (tournament.status === "draft") {
-    return { ok: false, reason: "Le tournoi n'a pas encore démarré." };
+  if (tournament.cancelled_at) {
+    return { ok: false, reason: "Le tournoi est annulé : aucun résultat ne peut être saisi." };
   }
   if (tournament.status === "archived") {
     return { ok: false, reason: "Le tournoi est clôturé : les résultats ne changent plus." };
+  }
+  if (tournament.status !== "ongoing") {
+    return { ok: false, reason: "Le tournoi n'a pas encore démarré." };
   }
   return { ok: true, reason: null };
 }

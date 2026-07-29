@@ -372,6 +372,102 @@ select pg_temp.check_refused('un tournoi ayant deja des rondes ne redemarre pas'
   $$select public.start_tournament('cccccccc-0000-0000-0000-0000000000c4')$$);
 reset role; reset test.uid;
 
+-- --------------------------------------------------------------------------
+-- Starting a round-robin, whose calendar is written at creation
+-- --------------------------------------------------------------------------
+-- The guard just exercised ("already has rounds") is right for the Swiss and
+-- wrong for the circle formats: theirs is a complete calendar, produced
+-- before the first move. It used to refuse them outright, leaving them
+-- 'draft' for good, with their boards unreachable.
+insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
+values ('cccccccc-0000-0000-0000-0000000000c5', 'Toutes rondes', 'round_robin', 3, 'draft',
+        '11111111-1111-1111-1111-111111111111', array['buchholz', 'wins']);
+insert into public.tournament_players(tournament_id, player_id) values
+  ('cccccccc-0000-0000-0000-0000000000c5', 'aaaaaaaa-0000-0000-0000-000000000001'),
+  ('cccccccc-0000-0000-0000-0000000000c5', 'aaaaaaaa-0000-0000-0000-000000000002');
+insert into public.rounds(id, tournament_id, number) values
+  ('dddddddd-0000-0000-0000-0000000000c5', 'cccccccc-0000-0000-0000-0000000000c5', 1),
+  ('dddddddd-0000-0000-0000-0000000000c6', 'cccccccc-0000-0000-0000-0000000000c5', 2);
+insert into public.pairings(id, round_id, white_player_id, black_player_id, result, board)
+values ('eeeeeeee-0000-0000-0000-0000000000c5', 'dddddddd-0000-0000-0000-0000000000c5',
+        'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', null, 1);
+
+-- Two rounds written, three announced: an interrupted creation. Starting on
+-- it would announce rounds nobody drew.
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check_refused('un calendrier incomplet ne demarre pas',
+  $$select public.start_tournament('cccccccc-0000-0000-0000-0000000000c5')$$);
+
+-- No result before the official start, even though the boards are there.
+-- This one is refused out loud by the trigger, where the freeze on a
+-- cancelled tournament above goes through RLS and simply matches no row.
+select pg_temp.check_refused('aucune saisie avant le demarrage officiel',
+  $$update public.pairings set result = '1-0'
+     where id = 'eeeeeeee-0000-0000-0000-0000000000c5'$$);
+reset role; reset test.uid;
+select pg_temp.check_equal('le calendrier prepare reste vierge',
+  (select count(*) from public.pairings
+    where id = 'eeeeeeee-0000-0000-0000-0000000000c5' and result is null), 1);
+
+-- The right count is not enough: an organizer may write rounds on their own
+-- draft, so a calendar numbered 1, 2, 9 must not pass for a complete one.
+insert into public.rounds(id, tournament_id, number)
+values ('dddddddd-0000-0000-0000-0000000000c9', 'cccccccc-0000-0000-0000-0000000000c5', 9);
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check_refused('un calendrier au bon compte mais mal numerote ne demarre pas',
+  $$select public.start_tournament('cccccccc-0000-0000-0000-0000000000c5')$$);
+reset role; reset test.uid;
+delete from public.rounds where id = 'dddddddd-0000-0000-0000-0000000000c9';
+
+insert into public.rounds(tournament_id, number)
+values ('cccccccc-0000-0000-0000-0000000000c5', 3);
+
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select public.start_tournament('cccccccc-0000-0000-0000-0000000000c5');
+reset role; reset test.uid;
+select pg_temp.check_equal('un calendrier complet demarre',
+  (select count(*) from public.tournaments
+    where id = 'cccccccc-0000-0000-0000-0000000000c5'
+      and status = 'ongoing' and started_at is not null), 1);
+
+-- Nothing was drawn: the calendar it started on is the one it had.
+select pg_temp.check_equal('demarrer un toutes-rondes n''ajoute aucune ronde',
+  (select count(*) from public.rounds
+    where tournament_id = 'cccccccc-0000-0000-0000-0000000000c5'), 3);
+select pg_temp.check_equal('ni aucun appariement',
+  (select count(*) from public.pairings p join public.rounds r on r.id = p.round_id
+    where r.tournament_id = 'cccccccc-0000-0000-0000-0000000000c5'), 1);
+
+-- And now, started, the same board takes its result.
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+update public.pairings set result = '1-0' where id = 'eeeeeeee-0000-0000-0000-0000000000c5';
+reset role; reset test.uid;
+select pg_temp.check_equal('une fois demarre, la saisie passe',
+  (select count(*) from public.pairings
+    where id = 'eeeeeeee-0000-0000-0000-0000000000c5' and result = '1-0'), 1);
+
+-- The Swiss draw is untouched: starting one still creates its round 1.
+insert into public.tournaments(id, name, format, rounds_planned, status, created_by, tiebreaks)
+values ('cccccccc-0000-0000-0000-0000000000c7', 'Suisse neuf', 'swiss', 3, 'draft',
+        '11111111-1111-1111-1111-111111111111', array['buchholz', 'wins']);
+insert into public.tournament_players(tournament_id, player_id) values
+  ('cccccccc-0000-0000-0000-0000000000c7', 'aaaaaaaa-0000-0000-0000-000000000001'),
+  ('cccccccc-0000-0000-0000-0000000000c7', 'aaaaaaaa-0000-0000-0000-000000000002');
+set role authenticated;
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select public.start_tournament('cccccccc-0000-0000-0000-0000000000c7');
+reset role; reset test.uid;
+select pg_temp.check_equal('demarrer un suisse tire toujours sa ronde 1',
+  (select count(*) from public.rounds r
+    where r.tournament_id = 'cccccccc-0000-0000-0000-0000000000c7' and r.number = 1), 1);
+select pg_temp.check_equal('avec son appariement',
+  (select count(*) from public.pairings p join public.rounds r on r.id = p.round_id
+    where r.tournament_id = 'cccccccc-0000-0000-0000-0000000000c7'), 1);
+
 select pg_temp.check_equal('les slugs restent uniques entre tournois vivants',
   (select count(*) from (select slug from public.tournaments
      where deleted_at is null group by slug having count(*) > 1) d), 0);
