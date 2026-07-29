@@ -9,6 +9,7 @@ import { getSupabaseEnv } from "./config.js";
 import { generateSchedule } from "./roundrobin.js";
 import { isRoundRobin } from "./tournament-validation.js";
 import { validateTiebreakSelection } from "./tiebreaks.js";
+import { validateTournamentName } from "./tournament-edit.js";
 
 // Version pinned exactly: an unpinned tag would let the CDN swap the code
 // that handles organizer passwords without any visible change here.
@@ -279,6 +280,75 @@ export async function getTournament(id) {
   return data ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Editing an existing tournament
+// ---------------------------------------------------------------------------
+// RLS restricts these writes to the owning admin or a super_admin, and
+// database triggers hold the rules a policy cannot express (round count
+// frozen once launched, pairings never moved). What follows only turns a
+// refusal into a readable message.
+
+// Under RLS a forbidden UPDATE is not an error: it simply matches no row.
+// Asking for the updated rows back is the only way to tell the difference.
+function assertUpdated(rows, forbiddenMessage) {
+  if (!rows?.length) {
+    throw new Error(forbiddenMessage);
+  }
+  return rows[0];
+}
+
+/** Renames a tournament. Allowed at any stage. */
+export async function renameTournament(id, name) {
+  const check = validateTournamentName(name);
+  if (!check.ok) throw new Error(check.errors.join(" "));
+
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .update({ name: name.trim() })
+    .eq("id", id)
+    .select("id, name");
+  if (error) {
+    throw new Error("Le renommage a echoue.");
+  }
+  return assertUpdated(data, "Vous n'avez pas le droit de renommer ce tournoi.");
+}
+
+/**
+ * Changes the planned round count. The trigger refuses it outside the draft
+ * stage and on round-robin formats, so a stale screen cannot force it.
+ */
+export async function updateRoundsPlanned(id, roundsPlanned) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("tournaments")
+    .update({ rounds_planned: roundsPlanned })
+    .eq("id", id)
+    .select("id, rounds_planned");
+  if (error) {
+    // The trigger raises check_violation with a message already in French.
+    throw new Error(error.message || "La modification du nombre de rondes a echoue.");
+  }
+  return assertUpdated(data, "Vous n'avez pas le droit de modifier ce tournoi.");
+}
+
+/**
+ * Corrects an already-entered result. Only `result` is sent: a trigger
+ * rejects any attempt to move the pairing itself.
+ */
+export async function updatePairingResult(pairingId, result) {
+  const client = await getClient();
+  const { data, error } = await client
+    .from("pairings")
+    .update({ result })
+    .eq("id", pairingId)
+    .select("id, result");
+  if (error) {
+    throw new Error(error.message || "La correction du resultat a echoue.");
+  }
+  return assertUpdated(data, "Vous n'avez pas le droit de corriger ce resultat.");
+}
+
 /**
  * A tournament with everything the standings need, reshaped into the state
  * the engines expect: { players: [{id, name}], rounds: [{pairings}] }.
@@ -292,7 +362,7 @@ export async function getTournamentResults(id) {
     .select(
       "id, name, format, rounds_planned, status, created_at, tiebreaks, " +
       "tournament_players(players(id, name)), " +
-      "rounds(number, pairings(board, white_player_id, black_player_id, result))"
+      "rounds(number, pairings(id, board, white_player_id, black_player_id, result))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -315,6 +385,8 @@ export async function getTournamentResults(id) {
       pairings: [...(round.pairings ?? [])]
         .sort((a, b) => (a.board ?? 0) - (b.board ?? 0))
         .map((pairing) => ({
+          id: pairing.id,
+          board: pairing.board,
           white: pairing.white_player_id,
           black: pairing.black_player_id,
           result: pairing.result,

@@ -4,11 +4,13 @@
 //   #/nouveau-tournoi    tournament creation (admins only, else redirected)
 //   #/tournoi/<id>       tournament view (placeholder for now)
 //   #/tournoi/<id>/classement  standings, public, once play has started
+//   #/tournoi/<id>/modifier    editing, owner or super_admin only
 
 import { initAuth } from "./auth.js";
 import { initTournamentForm, openTournamentForm } from "./tournament-form.js";
 import { openHome } from "./home.js";
 import { openStandings } from "./standings.js";
+import { initTournamentEdit, openTournamentEdit } from "./tournament-edit.js";
 import { getCurrentRole, getTournament, onAuthChange } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { FORMATS } from "../tournament-validation.js";
@@ -28,7 +30,13 @@ function safeDecode(segment) {
   }
 }
 
-const VIEWS = ["view-home", "view-new-tournament", "view-tournament", "view-standings"];
+const VIEWS = [
+  "view-home",
+  "view-new-tournament",
+  "view-tournament",
+  "view-tournament-edit",
+  "view-standings",
+];
 
 function showView(id) {
   for (const view of VIEWS) {
@@ -63,6 +71,22 @@ async function showTournament(id) {
       standingsSlot.append(link);
     }
 
+    // Edit link for admins only — added to the DOM rather than hidden in
+    // CSS. Ownership is still decided server-side: a non-owning admin who
+    // follows the link gets a screen whose every write is refused.
+    let role = null;
+    try {
+      role = await getCurrentRole();
+    } catch {
+      role = null;
+    }
+    if (isAdminRole(role)) {
+      const editLink = document.createElement("a");
+      editLink.href = `#/tournoi/${encodeURIComponent(tournament.id)}/modifier`;
+      editLink.textContent = "Modifier ce tournoi";
+      standingsSlot.append(" ", editLink);
+    }
+
     const list = el("tournament-players");
     for (const tp of tournament.tournament_players ?? []) {
       const item = document.createElement("li");
@@ -95,6 +119,17 @@ async function route() {
     return;
   }
 
+  const editMatch = hash.match(/^#\/tournoi\/(.+)\/modifier$/);
+  if (editMatch) {
+    const id = safeDecode(editMatch[1]);
+    showView("view-tournament-edit");
+    // Not an owner (or not an admin at all): back to the public view.
+    if (!(await openTournamentEdit(id))) {
+      window.location.hash = `#/tournoi/${encodeURIComponent(id)}`;
+    }
+    return;
+  }
+
   const standingsMatch = hash.match(/^#\/tournoi\/(.+)\/classement$/);
   if (standingsMatch) {
     showView("view-standings");
@@ -114,6 +149,7 @@ async function route() {
 
 async function init() {
   initTournamentForm();
+  initTournamentEdit();
   window.addEventListener("hashchange", route);
   await initAuth();
   await route();
