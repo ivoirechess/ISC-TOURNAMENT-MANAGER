@@ -9,12 +9,14 @@ import {
   STATE_LABELS,
   availableActions,
   canEditEntries,
+  canManageTournament,
   cancelConfirmationMessage,
   isFrozen,
   isPubliclyVisible,
   lifecycleState,
   stateLabel,
   startBlockedReason,
+  viewActions,
 } from "../src/tournament-lifecycle.js";
 import { pairRound } from "../src/swiss.js";
 
@@ -118,6 +120,68 @@ describe("availableActions", () => {
         assert.ok(ACTION_LABELS[action], `libelle manquant pour ${action}`);
       }
     }
+  });
+});
+
+describe("viewActions", () => {
+  test("la vue tournoi propose publier et supprimer sur un brouillon", () => {
+    // « Enregistrer » et « Previsualiser » appartiennent a l'ecran de
+    // modification : c'est la que sont les champs qu'ils enregistrent.
+    assert.deepEqual(viewActions(draft), ["publish", "delete"]);
+  });
+
+  test("a venir : depublier, demarrer, annuler", () => {
+    assert.deepEqual(viewActions(upcoming), ["unpublish", "start", "cancel"]);
+  });
+
+  test("en cours : annuler seulement, la cloture ayant deja son bouton", () => {
+    assert.deepEqual(viewActions(ongoing), ["cancel"]);
+  });
+
+  test("termine et annule : rien", () => {
+    assert.deepEqual(viewActions(finished), []);
+    assert.deepEqual(viewActions(cancelled), []);
+  });
+
+  test("la vue n'ajoute jamais une action que l'etat n'autorise pas", () => {
+    const byState = { draft, upcoming, ongoing, finished, cancelled };
+    for (const state of STATES) {
+      for (const action of viewActions(byState[state])) {
+        assert.ok(ACTIONS[state].includes(action), `${action} n'est pas permis en ${state}`);
+      }
+    }
+  });
+});
+
+describe("canManageTournament", () => {
+  const owned = { ...draft, created_by: "u1" };
+
+  test("le proprietaire administre son tournoi", () => {
+    assert.equal(canManageTournament(owned, "admin", "u1"), true);
+  });
+
+  test("un autre organisateur, non", () => {
+    assert.equal(canManageTournament(owned, "admin", "u2"), false);
+  });
+
+  test("un super-admin administre tout", () => {
+    assert.equal(canManageTournament(owned, "super_admin", "u2"), true);
+  });
+
+  test("un visiteur, non", () => {
+    assert.equal(canManageTournament(owned, null, null), false);
+    assert.equal(canManageTournament(owned, "viewer", "u1"), false);
+  });
+
+  test("sans identifiant de session, un admin n'administre rien", () => {
+    // Sinon un created_by absent des deux cotes se comparerait a lui-meme.
+    assert.equal(canManageTournament({ ...draft, created_by: null }, "admin", null), false);
+  });
+
+  test("un tournoi supprime n'a plus d'actions, pour personne", () => {
+    const deleted = { ...owned, deleted_at: "2026-07-05T10:00:00Z" };
+    assert.equal(canManageTournament(deleted, "admin", "u1"), false);
+    assert.equal(canManageTournament(deleted, "super_admin", "u2"), false);
   });
 });
 

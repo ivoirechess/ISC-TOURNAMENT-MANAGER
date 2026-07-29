@@ -76,6 +76,18 @@ export async function onAuthChange(callback) {
 }
 
 /**
+ * Id of the signed-in user, or null when browsing anonymously. Used to tell
+ * an organizer their own tournaments apart from the rest — an interface
+ * comfort, never a protection: `created_by` is compared server-side by every
+ * policy that matters.
+ */
+export async function getCurrentUserId() {
+  const client = await getClient();
+  const { data } = await client.auth.getUser();
+  return data?.user?.id ?? null;
+}
+
+/**
  * Role of the signed-in user as stored in profiles ('admin',
  * 'super_admin'), or null for anonymous visitors and accounts without a
  * profile row. The UI must rely on this, not on mere session presence —
@@ -616,7 +628,7 @@ export async function getTournamentResults(id) {
   const { data, error } = await client
     .from("tournaments")
     .select(
-      "id, name, slug, format, rounds_planned, status, created_at, tiebreaks, " +
+      "id, name, slug, format, rounds_planned, status, created_at, created_by, tiebreaks, " +
       "published_at, started_at, finished_at, cancelled_at, cancellation_reason, " +
       "starts_at, ends_at, timezone, venue_name, city, organizer_name, description, " +
       "tournament_players(withdrawn, players(id, name)), " +

@@ -92,6 +92,42 @@ export function availableActions(tournament) {
   return state ? [...ACTIONS[state]] : [];
 }
 
+/**
+ * Actions the public tournament view offers, which is `availableActions`
+ * minus the ones that already have a home elsewhere on the site:
+ *
+ *   - `save` and `preview` belong to the editing screen, which is where the
+ *     fields being saved or previewed are;
+ *   - `finish` is the closing button the rounds view already shows under the
+ *     last round, next to the round it closes.
+ *
+ * Offering them twice would mean two buttons for one transition, and the
+ * second one drifting out of step with the first.
+ */
+const ACTIONS_SHOWN_ELSEWHERE = ["save", "preview", "finish"];
+
+export function viewActions(tournament) {
+  return availableActions(tournament).filter(
+    (action) => !ACTIONS_SHOWN_ELSEWHERE.includes(action)
+  );
+}
+
+/**
+ * Whether this visitor may be shown the life-cycle buttons: the owning
+ * admin, or a super_admin on any tournament.
+ *
+ * Interface comfort, as always — the transitions re-check ownership
+ * themselves and RLS refuses whatever this returns. Its job is to avoid
+ * offering an organizer a « Publier » button whose only possible answer
+ * would be a refusal, on someone else's tournament.
+ */
+export function canManageTournament(tournament, role, userId) {
+  if (!tournament || tournament.deleted_at) return false;
+  if (role === "super_admin") return true;
+  if (role !== "admin") return false;
+  return Boolean(userId) && tournament.created_by === userId;
+}
+
 /** Minimum field required before a tournament can start. */
 export const MIN_PLAYERS_TO_START = 2;
 
