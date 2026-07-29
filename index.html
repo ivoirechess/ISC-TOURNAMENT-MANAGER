@@ -246,6 +246,23 @@
       border: 1px solid var(--line);
       border-radius: 4px;
     }
+    .lifecycle-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+    .lifecycle-state {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-right: 0.25rem;
+    }
     button.danger { border-color: #b3261e; color: #b3261e; }
     button.danger:hover { background: #b3261e; color: #fff; }
     .trash-row {
@@ -381,6 +398,8 @@
       <h2 id="tournament-title"></h2>
       <p id="tournament-meta" class="muted"></p>
       <p id="tournament-standings-link"></p>
+      <div id="tournament-actions"></div>
+      <p id="tournament-actions-feedback"></p>
       <h3>Rondes</h3>
       <div id="rounds-tabs" class="round-tabs"></div>
       <p id="rounds-progress" class="muted"></p>

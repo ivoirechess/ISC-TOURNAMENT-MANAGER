@@ -259,11 +259,17 @@ export function closeRounds() {
 /**
  * Called by the router with the tournament already loaded by the parent
  * view, so the rounds are not fetched twice.
+ *
+ * `focusRound` opens a given round number instead of the last one: that is
+ * how starting a tournament lands on the round 1 it has just drawn. An
+ * unknown number falls back to the last round, so a caller asking for a
+ * round that does not exist gets the usual view rather than an empty one.
  */
-export async function openRounds(payload) {
+export async function openRounds(payload, { focusRound = null } = {}) {
   closeRounds();
   current = payload;
-  visibleRound = Math.max(0, current.state.rounds.length - 1);
+  const wanted = current.state.rounds.findIndex((round) => round.number === focusRound);
+  visibleRound = wanted >= 0 ? wanted : Math.max(0, current.state.rounds.length - 1);
   setFeedback("", false);
 
   let role = null;

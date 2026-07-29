@@ -14,6 +14,7 @@ import { openStandings } from "./standings.js";
 import { initTournamentEdit, openTournamentEdit } from "./tournament-edit.js";
 import { openTrash } from "./trash.js";
 import { openRounds, closeRounds } from "./rounds.js";
+import { openLifecycleActions } from "./lifecycle-actions.js";
 import { getCurrentRole, getTournamentResults, onAuthChange } from "../data.js";
 import { isAdminRole } from "../roles.js";
 import { FORMATS } from "../tournament-validation.js";
@@ -48,13 +49,18 @@ function showView(id) {
   }
 }
 
-async function showTournament(id) {
+async function showTournament(id, options = {}) {
   showView("view-tournament");
   el("tournament-title").textContent = "Chargement…";
   el("tournament-meta").textContent = "";
   el("tournament-players").innerHTML = "";
   el("rounds-board").innerHTML = "";
   el("rounds-tabs").innerHTML = "";
+  // Cleared here and not only by the module that fills them: a tournament
+  // that fails to load must not leave the previous one's buttons — nor the
+  // message of the transition it just ran — on screen.
+  el("tournament-actions").innerHTML = "";
+  el("tournament-actions-feedback").textContent = "";
   try {
     const payload = await getTournamentResults(id);
     if (!payload) {
@@ -101,7 +107,15 @@ async function showTournament(id) {
       list.append(item);
     }
 
-    await openRounds(payload);
+    // Life-cycle buttons (publish, start, cancel…). A transition changes the
+    // tournament under our feet, so the module reloads this whole view
+    // rather than patching the row it just moved; `focusRound` is how a
+    // start lands on the round it has just drawn.
+    await openLifecycleActions(tournament, ({ focusRound } = {}) =>
+      showTournament(id, { focusRound })
+    );
+
+    await openRounds(payload, { focusRound: options.focusRound });
   } catch (err) {
     el("tournament-title").textContent = err.message;
   }
