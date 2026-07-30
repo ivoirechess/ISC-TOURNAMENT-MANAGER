@@ -20,3 +20,24 @@ test("la fonction Edge garde la service_role côté serveur et valide les droits
   assert.match(source,/SUPABASE_SERVICE_ROLE_KEY/);assert.match(source,/profile\?\.role!=="super_admin"/);
   assert.match(source,/inviteUserByEmail/);assert.match(source,/Une invitation active existe déjà/);
 });
+test("l'invitation utilise un select UUID sans seconde source de vérité",()=>{
+  const html=readFileSync("index.html","utf8");const ui=readFileSync("src/ui/clubs.js","utf8");
+  assert.match(html,/<select id="admin-club" required><option value="">Sélectionner un club<\/option><\/select>/);
+  assert.doesNotMatch(html,/admin-club-options|admin-club-combobox/);
+  assert.match(ui,/const clubId=el\("admin-club"\)\.value,club=activeAdminClubs\.find\(item=>item\.id===clubId\)/);
+  assert.match(ui,/club_id:club\.id/);
+  assert.match(ui,/if\(invitationPending\)return/);
+});
+test("seuls les clubs explicitement actifs alimentent les options et l'état vide bloque l'envoi",()=>{
+  const ui=readFileSync("src/ui/clubs.js","utf8");
+  assert.match(ui,/data\.clubs\.filter\(c=>c\.active===true\)/);
+  assert.match(ui,/option\.value=club\.id/);
+  assert.match(ui,/Aucun club actif disponible/);
+  assert.match(ui,/submit\.disabled=invitationPending\|\|activeAdminClubs\.length===0/);
+});
+test("les panneaux administratifs compacts n'héritent d'aucune grande carte",()=>{
+  const css=readFileSync("src/styles/main.css","utf8");
+  assert.doesNotMatch(css,/\.overview-card[^\n]*\.admin-(?:grid|list-panel)/);
+  const panelRule=css.match(/\.admin-invite-panel,\.admin-list-panel\{([^}]+)\}/)?.[1]??"";
+  assert.doesNotMatch(panelRule,/min-height/);
+});

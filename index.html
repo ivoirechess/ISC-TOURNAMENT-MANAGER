@@ -130,10 +130,18 @@
 
     <section id="view-clubs" hidden><p><a href="#/">← Tournois</a></p><div class="section-heading"><h1>Clubs d’échecs</h1><button id="clubs-create" type="button" class="primary" hidden>Créer un club</button></div><p id="clubs-feedback" aria-live="polite"></p><div id="clubs-list" class="clubs-grid"></div></section>
     <section id="view-club" hidden><p><a href="#/clubs">← Clubs</a></p><h1 id="club-name"></h1><p id="club-description"></p><p id="club-contact"></p><h2>Tournois publics</h2><ul id="club-tournaments"></ul></section>
-    <section id="view-user-administration" hidden><p><a href="#/">← Accueil</a></p><h1>Administration des utilisateurs</h1>
-      <p><a class="button-link" href="#/joueurs">Fusionner avec un autre joueur</a></p>
-      <form id="admin-invite-form"><label>E-mail<input id="admin-email" type="email" required></label><label for="admin-club">Club</label><div class="admin-club-row"><div id="admin-club-combobox" class="club-combobox"><input id="admin-club" type="search" autocomplete="off" required placeholder="Rechercher un club actif par nom ou ville"><div id="admin-club-options" class="club-options" hidden></div></div><button id="admin-create-club" type="button">Créer un club</button></div><button id="admin-invite-submit" class="primary">Inviter</button><p id="admin-feedback" aria-live="polite"></p></form>
-      <div class="admin-grid"><section><h2>Invitations</h2><ul id="admin-invitations"></ul></section><section><h2>Administrateurs</h2><ul id="club-admins"></ul></section></div>
+    <section id="view-user-administration" class="admin-page" hidden>
+      <p><a href="#/">← Accueil</a></p>
+      <div class="admin-page-heading"><div><h1>Administration des utilisateurs</h1><p>Invitez un organisateur et rattachez-le à un club.</p></div><a href="#/joueurs">Gérer et fusionner les joueurs</a></div>
+      <section class="admin-invite-panel" aria-labelledby="admin-invite-title"><h2 id="admin-invite-title">Nouvelle invitation</h2>
+        <form id="admin-invite-form" class="admin-invite-grid">
+          <label>E-mail<input id="admin-email" type="email" required placeholder="adresse@email.com"></label>
+          <label>Club<select id="admin-club" required><option value="">Sélectionner un club</option></select></label>
+          <div class="admin-invite-actions"><button id="admin-invite-submit" class="primary">Inviter</button><button id="admin-create-club" type="button">Créer un club</button></div>
+        </form>
+        <p id="admin-feedback" class="admin-feedback" aria-live="polite"></p>
+      </section>
+      <div class="admin-lists-grid"><section class="admin-list-panel"><h2>Invitations</h2><div id="admin-invitations" class="admin-list"></div></section><section class="admin-list-panel"><h2>Administrateurs</h2><div id="club-admins" class="admin-list"></div></section></div>
     </section>
 
     <dialog id="club-dialog" aria-labelledby="club-dialog-title"><form id="club-form"><h2 id="club-dialog-title">Créer un club</h2><div class="club-form-grid"><label>Nom *<input id="club-name-input" required></label><label>Ville<input id="club-city-input"></label><label class="wide">Description<textarea id="club-description-input"></textarea></label><label>E-mail public<input id="club-email-input" type="email"></label><label>Téléphone public<input id="club-phone-input" type="tel"></label><label>Site<input id="club-website-input" type="url" placeholder="https://"></label><label>Logo<input id="club-logo-input" type="url" placeholder="https://"></label><label><input id="club-active-input" type="checkbox" checked> Club actif</label></div><p id="club-form-feedback" class="error" aria-live="polite"></p><div class="actions"><button id="club-cancel" type="button">Annuler</button><button class="primary" type="submit">Créer le club</button></div></form></dialog>
