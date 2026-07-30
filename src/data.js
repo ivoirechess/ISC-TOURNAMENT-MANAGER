@@ -48,6 +48,52 @@ export async function signIn(email, password) {
   return data.session;
 }
 
+/**
+ * Opens the session an invitation (or password-reset) e-mail link carries.
+ *
+ * The tokens are read out of the URL by src/ui/password-setup.js before the
+ * client is ever created, so `detectSessionInUrl` finds nothing to do and the
+ * session is opened here, explicitly. Neither token is logged, and neither
+ * appears in the message a failure produces.
+ */
+export async function setSessionFromEmailLink({ accessToken, refreshToken }) {
+  if (!accessToken || !refreshToken) {
+    throw new Error("Ce lien est incomplet ou a deja ete utilise.");
+  }
+  const client = await getClient();
+  const { data, error } = await client.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+  if (error || !data?.session) {
+    throw new Error("Ce lien a expire ou a deja ete utilise.");
+  }
+  return data.session;
+}
+
+/**
+ * Sets the password of the signed-in user.
+ *
+ * The password never leaves this call: it is not logged, not stored, and not
+ * echoed back in any error. Supabase's own codes are translated rather than
+ * shown, so a failure cannot surface the value that caused it.
+ */
+export async function updatePassword(password) {
+  const client = await getClient();
+  const { error } = await client.auth.updateUser({ password });
+  if (!error) return;
+  if (error.code === "weak_password") {
+    throw new Error("Ce mot de passe est trop faible. Choisissez-en un plus long ou moins courant.");
+  }
+  if (error.code === "same_password") {
+    throw new Error("Choisissez un mot de passe different de l'ancien.");
+  }
+  if (error.code === "session_not_found" || error.status === 401) {
+    throw new Error("Votre lien n'est plus valide. Demandez au super-administrateur de vous en renvoyer un.");
+  }
+  throw new Error("L'enregistrement du mot de passe a echoue. Reessayez.");
+}
+
 /** Signs the current user out. */
 export async function signOut() {
   const client = await getClient();

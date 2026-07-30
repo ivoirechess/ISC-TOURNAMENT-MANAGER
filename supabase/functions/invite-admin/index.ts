@@ -4,6 +4,25 @@ const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"
 const json = (body: unknown, status=200) => new Response(JSON.stringify(body), {status,headers:{...cors,"Content-Type":"application/json"}});
 const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+// Supabase builds the invitation redirect as `redirectTo + "#" + tokens`,
+// literally. A redirectTo that already carries a fragment — and this site is a
+// hash-router application, so it is tempting to point at `#/…` — produces two
+// fragments, and the client then reads `"/…#access_token"` as a parameter name
+// and finds no token at all: the invitee lands signed out, with no way to set
+// a password. The base URL must therefore stay fragment-free; the site picks
+// the screen up from the `type=invite` marker Supabase adds itself.
+function siteBaseUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.hash = "";
+    url.search = "";
+    if (!url.pathname.endsWith("/")) url.pathname += "/";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
 Deno.serve(async (request) => {
   if(request.method==="OPTIONS") return new Response("ok",{headers:cors});
   if(request.method!=="POST") return json({error:"Méthode refusée."},405);
@@ -61,8 +80,10 @@ Deno.serve(async (request) => {
       const {data,error}=await service.from("admin_invitations").insert({email,club_id:clubId,invited_by:user.id}).select().single();
       if(error) throw error; invitationId=data.id;attemptedInvitation=data.id;
     }
-    const redirectTo=`${Deno.env.get("PUBLIC_SITE_URL")||request.headers.get("origin")||""}/#/administration/utilisateurs`;
-    const {data:invited,error:inviteError}=await service.auth.admin.inviteUserByEmail(email,{redirectTo});
+    const redirectTo=siteBaseUrl(Deno.env.get("PUBLIC_SITE_URL")||request.headers.get("origin")||"");
+    // Without a usable base, let Supabase fall back to the configured Site URL
+    // rather than send a link to a URL we made up.
+    const {data:invited,error:inviteError}=await service.auth.admin.inviteUserByEmail(email,redirectTo?{redirectTo}:{});
     if(inviteError) {await service.from("admin_invitations").update({last_error:inviteError.message}).eq("id",invitationId);throw inviteError;}
     const invitedId=invited.user.id;
     await service.from("profiles").upsert({id:invitedId,role:"admin",display_name:email},{onConflict:"id"});

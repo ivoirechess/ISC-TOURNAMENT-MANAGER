@@ -163,7 +163,11 @@ invitant à demander un renvoi au super-admin.
 
 Cet écran est un garde-fou d'interface, comme tout le reste côté navigateur :
 la session d'invitation est une vraie session émise par Supabase, et c'est le
-RLS qui décide de ce qu'elle peut écrire.
+RLS qui décide de ce qu'elle peut écrire. La porte est mémorisée par onglet
+(`sessionStorage`) pour survivre à un rechargement ; Supabase n'exposant aucun
+marqueur serveur, un second onglet ouvert délibérément y échappe — l'invité y
+navigue avec le rôle que l'invitation lui donnait déjà, mais reste incapable
+de se reconnecter tant qu'il n'a pas défini son mot de passe.
 
 ### Cycle de vie d'un tournoi
 

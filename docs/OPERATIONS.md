@@ -7,7 +7,7 @@ L'application est un site statique ES modules (`index.html`, `src/ui`) sans serv
 ## Déploiement Supabase
 
 1. Créer un projet de recette et désactiver les inscriptions publiques.
-2. Exécuter les migrations dans leur ordre horodaté avec `supabase db push`.
+2. Exécuter les migrations dans leur ordre horodaté avec `supabase db push`. Ne jamais renommer une migration déjà appliquée, même pour corriger un horodatage en double (voir `docs/RELEASE_AUDIT.md`).
 3. Exécuter `npm run test:rls` contre la pile locale.
 4. Déployer `invite-admin`, configurer `PUBLIC_SITE_URL` et les Redirect URLs.
 5. Activer Realtime pour `pairings`; vérifier l'état « Realtime connecté » sur une page tournoi.
@@ -47,6 +47,7 @@ Le workflow mensuel appelle `scripts/fide_civ.py`, filtre `FED=CIV`, conserve UT
 - [ ] Sauvegarde Supabase et migrations appliquées en recette.
 - [ ] RLS public/admin A/admin B/désactivé/super-admin vérifié.
 - [ ] Invitation, e-mail, Redirect URL et révocation vérifiés.
+- [ ] Lien d'invitation suivi de bout en bout : écran « Définir votre mot de passe », reconnexion avec ce mot de passe, lien expiré expliqué.
 - [ ] Realtime connecté et bouton Actualiser opérationnel en fallback.
 - [ ] Exports ouverts dans Excel et feuilles imprimées sans donnée privée.
 - [ ] Navigation clavier, mobile Chromium et iPad WebKit contrôlés.

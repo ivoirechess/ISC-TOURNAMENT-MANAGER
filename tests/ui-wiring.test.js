@@ -60,6 +60,62 @@ describe("câblage de l'interface", () => {
   });
 });
 
+describe("écran de définition du mot de passe", () => {
+  const passwordSetup = read("src/ui/password-setup.js");
+  const data = read("src/data.js");
+  const invite = read("supabase/functions/invite-admin/index.ts");
+
+  test("le rappel d'invitation est lu avant toute initialisation Supabase", () => {
+    // C'est l'invariant qui fait tenir tout le flux : le client Supabase vide
+    // `location.hash` des qu'il demarre, et le marqueur `type=invite`
+    // n'existe nulle part ailleurs. Le lire apres, c'est le perdre.
+    const body = app.slice(app.indexOf("async function init()"));
+    const capture = body.indexOf("captureAuthCallback");
+    const auth = body.indexOf("initAuth");
+    assert.ok(capture !== -1, "captureAuthCallback doit etre appele au demarrage");
+    assert.ok(capture < auth, "captureAuthCallback doit venir avant initAuth");
+    assert.match(body, /step\("[^"]+", captureAuthCallback\)/);
+    assert.match(body, /step\("[^"]+", initPasswordSetup\)/);
+  });
+
+  test("l'écran préempte toutes les autres routes", () => {
+    const body = app.slice(app.indexOf("async function route()"));
+    const gate = body.indexOf("isPasswordSetupPending()");
+    assert.ok(gate !== -1, "route() doit interroger la porte");
+    // Aucune autre vue ne doit pouvoir s'ouvrir avant elle.
+    for (const branch of ["#/nouveau-tournoi", "#/corbeille", "#/joueurs", "#/administration/utilisateurs"]) {
+      const position = body.indexOf(branch);
+      assert.ok(position === -1 || gate < position, `${branch} est atteignable avant la porte`);
+    }
+    assert.ok(app.includes('"view-password-setup"'), "la vue doit figurer dans VIEWS");
+    assert.ok(html.includes('id="view-password-setup"'));
+  });
+
+  test("le formulaire valide lui-même, en français", () => {
+    // novalidate : sans cela le navigateur affiche ses propres bulles, dans
+    // sa langue, et nos messages ne s'affichent jamais.
+    const form = html.slice(html.indexOf('id="password-setup-form"'));
+    assert.match(form.slice(0, form.indexOf(">")), /novalidate/);
+    assert.match(passwordSetup, /validateNewPassword\(/);
+  });
+
+  test("aucun mot de passe ni jeton n'est journalisé", () => {
+    for (const [name, source] of [["password-setup.js", passwordSetup], ["data.js", data]]) {
+      assert.doesNotMatch(source, /console\.(log|info|warn|error|debug)/, `${name} ne doit rien journaliser ici`);
+    }
+    // Le message d'erreur vient de nos propres libellés, jamais de la valeur
+    // saisie ni de l'exception brute renvoyée par Supabase.
+    assert.doesNotMatch(passwordSetup, /newPassword\.value\s*\+|\$\{[^}]*password[^}]*\}/i);
+  });
+
+  test("l'URL de redirection de l'invitation ne porte aucun fragment", () => {
+    // Supabase concatene `redirectTo + "#" + jetons` : un fragment de plus et
+    // le client ne retrouve plus un seul jeton.
+    assert.match(invite, /url\.hash\s*=\s*""/);
+    assert.doesNotMatch(invite, /redirectTo\s*=\s*`[^`]*#/);
+  });
+});
+
 describe("identité visuelle", () => {
   test("le logo est un fichier versionné, référencé par l'en-tête", () => {
     const size = statSync(new URL("assets/logo.png", root)).size;
