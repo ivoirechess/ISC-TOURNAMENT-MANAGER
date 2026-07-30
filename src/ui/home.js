@@ -94,7 +94,7 @@ function renderTable(target, selectedRows, emptyText) {
     return;
   }
   const table = document.createElement("table");
-  table.className = "directory-table";
+  table.className = "directory-table tournament-directory-table";
   table.innerHTML = "<thead><tr><th>Statut</th><th>Tournoi</th><th>Date</th><th>Lieu</th><th>Format</th><th>Cadence</th><th>Joueurs</th><th>Dernière activité</th></tr></thead>";
   const body = document.createElement("tbody");
   for (const row of selectedRows) body.append(tournamentRow(row));

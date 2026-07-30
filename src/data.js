@@ -215,7 +215,7 @@ export async function listPlayersPage({page=1,pageSize=25,query="",title="",acti
 
 export async function getPlayerProfile(identifier) {
   const client=await getClient();
-  let request=client.from("players").select("id,name,fide_id,federation,fide_title,other_titles,fide_active,source_period,fide_synced_at,club,club_id,local_notes,rating_std,rating_rapid,rating_blitz,updated_at,merged_into,clubs(id,name),player_aliases(alias),tournament_players(tournaments(id,slug,name,status,published_at,started_at,finished_at,cancelled_at,starts_at))");
+  let request=client.from("players").select("id,name,fide_id,federation,fide_title,other_titles,sex,birth_year,fide_active,source_period,fide_synced_at,club,club_id,local_notes,rating_std,rating_rapid,rating_blitz,official_fide_data,local_overrides,updated_at,merged_into,clubs(id,name),player_aliases(alias),tournament_players(tournaments(id,slug,name,status,published_at,started_at,finished_at,cancelled_at,starts_at))");
   request=/^\d+$/.test(identifier)?request.eq("fide_id",Number(identifier)):request.eq("id",identifier);
   const {data,error}=await request.maybeSingle(); if(error) throw new Error("Impossible de charger ce joueur.");
   if(data?.merged_into){const target=await getPlayerProfile(data.merged_into);return target?{...target,redirectedFrom:data.id}:null} return data??null;
@@ -228,6 +228,11 @@ export async function findPlayerDuplicates({name,fideId=null,club=null,ratingStd
 
 export async function previewPlayerMerge(source,target,choices={}) {
   const {previewPlayerMerge:preview}=await import("./player-merge.js");return preview(source,target,choices);
+}
+
+export async function editPlayerAsSuperAdmin(playerId,changes,reason) {
+  const client=await getClient();const {data,error}=await client.rpc("edit_player_as_super_admin",{p_player_id:playerId,p_changes:changes,p_reason:reason});
+  if(error){const readable=new Error(error.message||"La modification du joueur a échoué.");const match=error.message?.match(/CONFLICT_PLAYER:([0-9a-f-]+)/i);if(match)readable.conflictingPlayer=await getPlayerProfile(match[1]);throw readable}return data;
 }
 
 export async function mergePlayers({sourceId,targetId,reason}) {
