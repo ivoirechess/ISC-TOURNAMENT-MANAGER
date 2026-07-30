@@ -1,0 +1,68 @@
+name: Export temporaire FIDE CIV
+
+on:
+  push:
+    branches:
+      - tmp/fide-civ-export-2026-07
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Télécharger la liste FIDE et générer les exports CIV
+        run: |
+          mkdir -p output
+          python scripts/fide_civ.py \
+            --download \
+            --period 2026-07 \
+            --output output/fide-civ-2026-07.json \
+            --sql-output output/fide-civ-2026-07.sql \
+            --dry-run
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report_path = Path('output/fide-civ-2026-07.json')
+          data = json.loads(report_path.read_text(encoding='utf-8'))
+          report = data['report']
+          players = data['players']
+
+          assert report['civ_players'] == len(players)
+          ids = [p['fide_id'] for p in players]
+          assert len(ids) == len(set(ids)), 'Des identifiants FIDE sont dupliqués.'
+          assert all(p['federation'] == 'CIV' for p in players)
+          assert all(p['fide_id'] and p['name'] for p in players)
+
+          summary = {
+              'period': report['period'],
+              'source': report['source'],
+              'sha256': report['sha256'],
+              'rows_read': report['rows_read'],
+              'civ_players': report['civ_players'],
+              'duplicate_fide_ids': report['duplicate_fide_ids'],
+              'first_player': players[0] if players else None,
+              'last_player': players[-1] if players else None,
+          }
+          Path('output/summary.json').write_text(
+              json.dumps(summary, ensure_ascii=False, indent=2),
+              encoding='utf-8',
+          )
+          print(json.dumps(summary, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Publier les fichiers générés
+        uses: actions/upload-artifact@v4
+        with:
+          name: fide-civ-export-2026-07
+          path: output/
+          if-no-files-found: error
+          retention-days: 7
