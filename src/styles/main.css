@@ -222,9 +222,6 @@
     .fide-fields {background:#eef5ff;border:1px solid #c8dcf5}.local-fields{background:#f5faf6;border:1px solid #c8e0ce}
     .clubs-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem;}
     .club-card {border:1px solid var(--line);border-radius:.7rem;padding:1rem;background:#fff;}
-    .admin-grid {display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
-    .admin-grid section {border:1px solid var(--line);border-radius:.7rem;padding:1rem;}
-    .admin-grid li {margin:.6rem 0;}.admin-grid li button{margin-left:.4rem;}
     .directory-empty { margin: 1rem 0 0; padding: 2.25rem 1rem; text-align: center; color: var(--muted); background: #fafafa; border-radius: 0.5rem; }
     #directory-more { display: block; margin: 1rem auto 0; }
     #directory-more[hidden] { display: none; }
@@ -383,7 +380,6 @@
       .wizard-grid { grid-template-columns: 1fr; }
       .wizard-grid .wide { grid-column: auto; }
       .player-filters {grid-template-columns:1fr;}
-      .admin-grid {grid-template-columns:1fr;}
       .pairing-row { grid-template-columns: 2rem 1fr; padding: 0.75rem; border: 1px solid var(--line); border-radius: 0.5rem; margin-bottom: 0.6rem; }
       .pairing-head { display: none; }
       .pairing-row .board-number { grid-row: 1 / 3; }
@@ -567,7 +563,7 @@ footer a { color: #fff; }
 .tournament-tabs { border: 0; padding: .35rem; border-radius: .6rem; background: var(--mist); }
 .tournament-tabs button { border-radius: .35rem; }
 .tournament-tabs button.active { color: #fff; border: 0; background: var(--accent-dark); }
-.overview-card, .organizer-panel, .club-card, .admin-grid section { border: 0; border-radius: var(--radius); background: var(--surface); box-shadow: 0 .55rem 1.6rem rgb(23 56 46 / 8%); }
+.overview-card, .organizer-panel, .club-card { border: 0; border-radius: var(--radius); background: var(--surface); box-shadow: 0 .55rem 1.6rem rgb(23 56 46 / 8%); }
 .overview-card { border-top: .3rem solid var(--gold); }
 .overview-card:nth-child(2) { border-top-color: var(--accent); }
 .overview-card:nth-child(3) { border-top-color: var(--accent-dark); }
@@ -637,6 +633,12 @@ button.danger:hover { background: var(--danger); }
 .club-near-warning{margin:.35rem 0 0;font-size:.9rem}.admin-club-row{align-items:flex-start}.admin-club-row .club-combobox{flex:1 1 28rem;max-width:36rem}
 .club-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.club-form-grid label{display:grid;gap:.3rem}.club-form-grid .wide{grid-column:1/-1}#club-dialog{width:min(44rem,calc(100vw - 2rem))}#club-dialog input,#club-dialog textarea{width:100%;box-sizing:border-box}
 @media(max-width:600px){.club-form-grid{grid-template-columns:1fr}.club-form-grid .wide{grid-column:auto}.admin-club-row>*{width:100%}.club-options{max-height:14rem}}
+
+/* User administration deliberately uses dense panels, not overview cards. */
+.admin-page{max-width:55rem;margin:0 auto}.admin-page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:1rem}.admin-page-heading h1{margin:0}.admin-page-heading p{margin:.3rem 0 0;color:var(--muted)}.admin-page-heading>a{flex:0 0 auto;color:var(--accent-dark);font-size:.9rem}
+.admin-invite-panel,.admin-list-panel{border:1px solid var(--line);border-radius:.7rem;background:#fff}.admin-invite-panel{padding:1rem 1.25rem;margin-bottom:1rem}.admin-invite-panel h2,.admin-list-panel h2{margin:0;font-size:1rem}.admin-invite-grid{display:grid;grid-template-columns:minmax(15rem,1.25fr) minmax(15rem,1fr) auto;align-items:end;gap:.8rem;margin-top:.8rem}.admin-invite-grid label{display:grid;gap:.3rem;min-width:0;font-size:.85rem;font-weight:650}.admin-invite-grid input,.admin-invite-grid select{width:100%;min-width:0;height:44px;padding:.55rem .7rem;border:1px solid #aeb8b2;border-radius:.35rem;background:#fff;font:inherit}.admin-invite-grid select{overflow:hidden;text-overflow:ellipsis}.admin-invite-grid input:focus-visible,.admin-invite-grid select:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-color:var(--accent-dark)}.admin-invite-actions{display:flex;gap:.5rem}.admin-invite-actions button{min-height:44px;white-space:nowrap}.admin-feedback{min-height:1.25rem;margin:.65rem 0 0;color:var(--accent-dark);font-size:.9rem}.admin-lists-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.admin-list-panel{padding:.8rem 1rem}.admin-list{margin-top:.45rem}.admin-empty-state{margin:0;padding:.55rem 0 .1rem;color:var(--muted);font-size:.9rem}.admin-list-row{display:flex;align-items:center;justify-content:space-between;gap:.65rem;padding:.65rem 0;border-bottom:1px solid var(--line)}.admin-list-row:last-child{border-bottom:0;padding-bottom:.1rem}.admin-list-row strong,.admin-list-row small{display:block;overflow-wrap:anywhere}.admin-list-row small{margin-top:.18rem;color:var(--muted);font-size:.78rem}.admin-row-actions{display:flex;flex:0 0 auto;gap:.25rem}.admin-row-actions button{padding:.25rem .45rem;font-size:.78rem}
+@media(max-width:56rem){.admin-invite-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-invite-actions{grid-column:1/-1}.admin-page-heading{align-items:flex-start}}
+@media(max-width:42rem){.admin-page-heading{display:block}.admin-page-heading>a{display:inline-block;margin-top:.55rem}.admin-invite-panel{padding:1rem}.admin-invite-grid,.admin-lists-grid{grid-template-columns:1fr}.admin-invite-actions{grid-column:auto;flex-wrap:wrap}.admin-invite-actions button{flex:1 1 auto}.admin-list-row{align-items:flex-start;flex-direction:column}.admin-row-actions{width:100%}}
 
 .player-directory-scroll { overflow-x:auto; }.player-directory-compact{display:none}.player-selection-bar{position:sticky;bottom:.5rem;z-index:4;display:flex;gap:.65rem;align-items:center;flex-wrap:wrap;padding:.55rem .75rem;background:#fff;border:1px solid var(--line);box-shadow:0 .2rem .7rem rgb(0 0 0 / 12%)}
 .merge-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}.merge-pair article{border:1px solid var(--line);padding:.7rem}.player-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.player-edit-grid label,.player-edit-grid input,.player-edit-grid select,.player-edit-grid textarea{min-width:0;width:100%}
