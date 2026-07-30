@@ -98,6 +98,13 @@ deux apparitions dans la même ronde est refusée.
 
 ## Clubs et invitations administrateur
 
+La gestion canonique des clubs requiert ensuite **une seule migration additive** :
+`supabase/migrations/20260813120000_canonical_club_management.sql`. Elle rapproche
+les anciens clubs texte, installe les RPC transactionnelles de résolution et de
+création de joueur, ainsi que les diagnostics et alias. Elle doit être appliquée
+après `20260812120000_safe_player_merge.sql`; aucune migration antérieure ne doit
+être rejouée ou modifiée.
+
 La migration `20260809120000_club_administration.sql` ajoute les memberships
 `owner`/`admin`, les invitations auditées et `tournaments.club_id`. Les règles
 RLS donnent accès aux tournois d'un club uniquement à ses membres actifs. Un
