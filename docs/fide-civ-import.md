@@ -40,3 +40,9 @@ peut être lancée avec `--apply` et `DATABASE_URL`. Ne jamais exposer la clé
 Après import, ouvrir `#/joueurs`. Cette vue conserve sa pagination serveur : le
 compteur doit correspondre au nombre de joueurs non fusionnés et les pages
 suivantes doivent rendre la totalité de la fédération CIV.
+
+## Surcharges locales et audit
+
+La migration `20260813120000_player_super_admin_edit.sql` conserve dans `official_fide_data` les dernières valeurs reçues et dans `local_overrides` les champs corrigés par un super-admin. L'import mensuel actualise toujours la valeur officielle, mais utilise la valeur locale tant que la clé de surcharge existe. `club_id`, `club` et `local_notes` ne font jamais partie de la mise à jour FIDE. Le rapport JSON expose `protected_override_fields`.
+
+La RPC transactionnelle `edit_player_as_super_admin` valide, verrouille et journalise chaque correction dans la table append-only `player_edit_log`. `restore_player_fide_value` réapplique une valeur officielle puis enlève sa surcharge. Les nouvelles inscriptions reçoivent des snapshots dans `tournament_players`; aucun historique existant n'est réécrit.
