@@ -642,5 +642,24 @@ button.danger:hover { background: var(--danger); }
 
 .player-directory-scroll { overflow-x:auto; }.player-directory-compact{display:none}.player-selection-bar{position:sticky;bottom:.5rem;z-index:4;display:flex;gap:.65rem;align-items:center;flex-wrap:wrap;padding:.55rem .75rem;background:#fff;border:1px solid var(--line);box-shadow:0 .2rem .7rem rgb(0 0 0 / 12%)}
 .merge-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}.merge-pair article{border:1px solid var(--line);padding:.7rem}.player-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.player-edit-grid label,.player-edit-grid input,.player-edit-grid select,.player-edit-grid textarea{min-width:0;width:100%}
-@media (min-width:40.01rem) and (max-width:64rem){.tournament-directory-table,.player-directory-table{font-size:.8rem;min-width:46rem}.tournament-directory-table th,.tournament-directory-table td,.player-directory-table th,.player-directory-table td{padding:.55rem .4rem;white-space:nowrap}.tournament-directory-table th:nth-child(4),.tournament-directory-table td:nth-child(4),.tournament-directory-table th:nth-child(8),.tournament-directory-table td:nth-child(8),.player-directory-table th:nth-child(4),.player-directory-table td:nth-child(4),.player-directory-table th:nth-child(5),.player-directory-table td:nth-child(5),.player-directory-table th:nth-child(8),.player-directory-table td:nth-child(8),.player-directory-table th:nth-child(9),.player-directory-table td:nth-child(9){display:none}}
+/* Between 40 and 64rem the directory tables keep a 46rem minimum so their
+   columns stay readable; the player table already scrolls inside its own
+   wrapper, the tournament one used to push the whole page sideways. */
+@media (min-width:40.01rem) and (max-width:64rem){#directory-results{overflow-x:auto}.tournament-directory-table,.player-directory-table{font-size:.8rem;min-width:46rem}.tournament-directory-table th,.tournament-directory-table td,.player-directory-table th,.player-directory-table td{padding:.55rem .4rem;white-space:nowrap}.tournament-directory-table th:nth-child(4),.tournament-directory-table td:nth-child(4),.tournament-directory-table th:nth-child(8),.tournament-directory-table td:nth-child(8),.player-directory-table th:nth-child(4),.player-directory-table td:nth-child(4),.player-directory-table th:nth-child(5),.player-directory-table td:nth-child(5),.player-directory-table th:nth-child(8),.player-directory-table td:nth-child(8),.player-directory-table th:nth-child(9),.player-directory-table td:nth-child(9){display:none}}
 @media (max-width:40rem){.player-directory-scroll{display:none}.player-directory-compact{display:block;border-top:1px solid var(--line)}.player-compact-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.15rem .45rem;min-height:54px;max-height:68px;padding:.48rem .25rem;border-bottom:1px solid var(--line);cursor:pointer}.player-compact-row input{width:1.1rem;height:1.1rem}.player-compact-main{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}.player-compact-row strong{font-variant-numeric:tabular-nums}.player-compact-row small{grid-column:2/4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.72rem}.tournament-directory-table{table-layout:fixed;font-size:.78rem}.tournament-directory-table th,.tournament-directory-table td{padding:.5rem .25rem}.tournament-directory-table th:nth-child(n+4):not(:nth-child(7)),.tournament-directory-table td:nth-child(n+4):not(:nth-child(7)),.tournament-directory-table th:nth-child(3),.tournament-directory-table td:nth-child(3){display:none}.tournament-directory-table th:first-child,.tournament-directory-table td:first-child{width:5rem}.tournament-directory-table th:nth-child(7),.tournament-directory-table td:nth-child(7){width:2.5rem}.directory-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.player-filters{grid-template-columns:1fr;max-height:9rem;overflow:auto}.merge-pair,.player-edit-grid{grid-template-columns:1fr}}
+
+/* Blocking "set your password" screen. While the gate is up the site offers
+   no way round it: no navigation, no profile menu, and the brand stops being
+   a link. The gate itself is a matter of interface — RLS decides the rest. */
+.password-setup{max-width:34rem;margin:clamp(1.5rem,6vw,4rem) auto;padding:clamp(1.2rem,3vw,2rem);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+.password-setup h1{margin-top:0}
+.password-setup form{display:grid;gap:.35rem}
+/* `display:grid` above outranks the browser's own [hidden] rule, so the dead
+   link would still show a form it cannot submit. */
+.password-setup form[hidden]{display:none}
+.password-setup label{margin-top:.75rem;font-weight:650}
+.password-setup input{width:100%;box-sizing:border-box}
+.password-setup .actions{margin-top:1.1rem}
+.password-setup #password-setup-error:empty{min-height:0}
+body.auth-gate .main-nav,body.auth-gate .profile{display:none}
+body.auth-gate .brand{pointer-events:none}

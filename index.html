@@ -241,6 +241,23 @@
       <p><a id="standings-back" href="#/">← Retour au tournoi</a></p>
     </section>
 
+    <!-- Blocking screen for an invitation or password-reset link. The form
+         carries novalidate: the French messages come from
+         src/auth-callback.js, not from the browser's own bubbles. -->
+    <section id="view-password-setup" class="password-setup" hidden>
+      <h1 id="password-setup-title">Définir votre mot de passe</h1>
+      <p id="password-setup-intro"></p>
+      <form id="password-setup-form" novalidate>
+        <label for="password-setup-new">Nouveau mot de passe</label>
+        <input id="password-setup-new" type="password" autocomplete="new-password" minlength="12" required>
+        <label for="password-setup-confirm">Confirmer le mot de passe</label>
+        <input id="password-setup-confirm" type="password" autocomplete="new-password" minlength="12" required>
+        <p class="muted">Au moins 12 caractères. Ce mot de passe vous servira à vous connecter par la suite.</p>
+        <div class="actions"><button id="password-setup-submit" type="submit" class="primary">Enregistrer et continuer</button></div>
+      </form>
+      <p id="password-setup-error" class="error" aria-live="polite"></p>
+    </section>
+
     <dialog id="login-view" aria-labelledby="login-title">
       <h2 id="login-title">Connexion organisateur</h2>
       <p id="login-error"></p>

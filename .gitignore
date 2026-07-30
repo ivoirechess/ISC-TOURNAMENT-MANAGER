@@ -6,3 +6,7 @@
 !.env.example
 
 node_modules/
+
+# Playwright artefacts (captures, traces) : jamais versionnes.
+test-results/
+playwright-report/

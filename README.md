@@ -129,6 +129,13 @@ Dans Authentication → URL Configuration, renseigner :
 - **Redirect URLs** : `https://ORGANISATION.github.io/DEPOT/**` et l'URL locale
   de développement si nécessaire (`http://localhost:8000/**`).
 
+`PUBLIC_SITE_URL` doit rester une **URL sans fragment** : la fonction en retire
+d'ailleurs tout `#…` avant de la transmettre. Supabase construit en effet le
+lien de redirection en concaténant `redirectTo + "#" + jetons`. Un
+`redirectTo` visant déjà une route de l'application (`…/#/administration/…`)
+produirait deux fragments, et le client Supabase ne retrouverait plus aucun
+jeton : l'invité arriverait sur le site sans session ni explication.
+
 Dans Authentication → Email Templates → Invite user, conserver le lien
 `{{ .ConfirmationURL }}` et expliquer que l'invité devient administrateur du
 club après confirmation. Tester le modèle sur mobile et vérifier que le domaine
@@ -138,6 +145,31 @@ La page `#/administration/utilisateurs`, réservée aux super-administrateurs,
 permet d'inviter, renvoyer ou révoquer une invitation et de désactiver ou
 réactiver une membership. Les annuaires publics sont `#/clubs` et
 `#/club/<slug>`.
+
+### Ce que voit l'invité
+
+1. Il reçoit l'e-mail et clique. Supabase vérifie le lien, puis redirige vers
+   l'URL du site avec les jetons dans le **fragment**
+   (`#access_token=…&type=invite`).
+2. Le site lit ce fragment **avant** d'initialiser le client Supabase, en
+   retire les jetons de la barre d'adresse et affiche l'écran bloquant
+   `#/definir-mot-de-passe` : « Définir votre mot de passe ». Aucune autre vue
+   n'est accessible tant qu'il n'est pas défini — ni par la navigation, ni par
+   un rechargement.
+3. À la validation (12 caractères minimum), le mot de passe est enregistré
+   côté Supabase, puis l'invité est redirigé selon son rôle : accueil pour un
+   organisateur, `#/administration/utilisateurs` pour un super-administrateur.
+   Il peut dès lors se reconnecter normalement avec cet e-mail et ce mot de
+   passe.
+4. Un lien expiré, déjà utilisé, ou dont la session ne s'établit pas affiche
+   « Lien expiré ou déjà utilisé » et invite à demander un renvoi au
+   super-administrateur — jamais une page muette.
+
+Le même écran sert aux liens de réinitialisation de mot de passe
+(`type=recovery`), avec un texte d'introduction adapté.
+
+Les invitations émises avant ce correctif portaient une URL de redirection à
+deux fragments ; le site sait encore les lire, elles restent donc utilisables.
 
 ## Documentation d'exploitation
 

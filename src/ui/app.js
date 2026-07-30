@@ -8,6 +8,8 @@
 //   #/corbeille                deleted tournaments, super_admin only
 
 import { initAuth } from "./auth.js";
+import { captureAuthCallback, initPasswordSetup, isPasswordSetupPending, openPasswordSetup } from "./password-setup.js";
+import { PASSWORD_SETUP_HASH } from "../auth-callback.js";
 import { initTournamentForm, openTournamentForm } from "./tournament-form.js";
 import { openHome } from "./home.js";
 import { initTournamentEdit, openTournamentEdit } from "./tournament-edit.js";
@@ -50,6 +52,7 @@ const VIEWS = [
   "view-clubs",
   "view-club",
   "view-user-administration",
+  "view-password-setup",
 ];
 
 function showView(id) {
@@ -129,6 +132,21 @@ async function route() {
   const routeHash = hash.split("?")[0];
   // Leaving the tournament view drops its realtime channel.
   if (!/^#\/tournoi\/[^/]+$/.test(routeHash)) closeRounds();
+
+  // An invitation or reset link preempts every route: an account without a
+  // password could never sign in again, so nothing else opens until it has
+  // one. The screen puts the hash back itself, so typing another route or
+  // reloading changes nothing.
+  if (isPasswordSetupPending()) {
+    showView("view-password-setup");
+    await openPasswordSetup();
+    return;
+  }
+  if (routeHash === PASSWORD_SETUP_HASH) {
+    // Reached without a link: there is no password to set here.
+    window.location.hash = "#/";
+    return;
+  }
 
   if (hash === "#/nouveau-tournoi") {
     // Interface guard only — RLS is the real protection. Rely on the role
@@ -230,9 +248,15 @@ async function step(name, run) {
 }
 
 async function init() {
+  // Before anything else, and before any Supabase call: the client wipes
+  // `location.hash` the moment it initialises, and the invitation marker
+  // lives nowhere but that fragment.
+  await step("lien d'invitation", captureAuthCallback);
+
   // Sign-in first: whatever else fails, the organizer can still log in.
   await step("connexion", initAuth);
 
+  await step("écran de mot de passe", initPasswordSetup);
   await step("formulaire de création", initTournamentForm);
   await step("écran de modification", initTournamentEdit);
 
