@@ -153,9 +153,17 @@ function bindControls() {
 
 async function renderActions() {
   const slot = el("home-actions"); slot.innerHTML = "";
+  slot.hidden = true;
   if (!isAdminRole(user.role)) return;
-  const create = document.createElement("a"); create.className = "button-link"; create.href = "#/nouveau-tournoi"; create.textContent = "Créer un tournoi"; slot.append(create);
-  if (user.role === "super_admin") { const users = document.createElement("a");users.href="#/administration/utilisateurs";users.textContent="Utilisateurs";const trash = document.createElement("a"); trash.href = "#/corbeille"; trash.textContent = "Corbeille"; slot.append(" ",users," ", trash); }
+  slot.hidden = false;
+  const create = document.createElement("a"); create.className = "button-link primary home-create-action"; create.href = "#/nouveau-tournoi"; create.textContent = "Créer un tournoi"; slot.append(create);
+  if (user.role === "super_admin") {
+    const administration = document.createElement("div"); administration.className = "home-admin-actions";
+    const label = document.createElement("span"); label.textContent = "Administration";
+    const users = document.createElement("a"); users.href = "#/administration/utilisateurs"; users.textContent = "Utilisateurs";
+    const trash = document.createElement("a"); trash.href = "#/corbeille"; trash.textContent = "Corbeille";
+    administration.append(label, users, trash); slot.append(administration);
+  }
 }
 
 /** Called by the router each time the home view is shown. */

@@ -37,8 +37,8 @@
     <section id="view-home">
       <div class="home-heading">
         <div><h1>Tournois d’échecs en Côte d’Ivoire</h1><p>Calendrier, résultats et archives de la communauté ivoirienne.</p></div>
-        <div id="home-actions"></div>
       </div>
+      <div id="home-actions" class="home-action-bar" aria-label="Actions organisateur"></div>
       <p id="home-error" class="error"></p>
       <div class="directory-panel">
         <nav id="directory-tabs" class="directory-tabs" aria-label="Filtrer par statut"></nav>
@@ -66,7 +66,7 @@
           <label>Nom *<input id="t-name" required></label><label>Date et heure<input id="t-starts" type="datetime-local"></label>
           <label class="wide">Description<textarea id="t-description" rows="4"></textarea></label><label>Ville<input id="t-city"></label><label>Salle<input id="t-venue"></label>
           <label class="wide">Adresse<input id="t-address"></label><label>Organisateur<input id="t-organizer"></label><label>Contact public<input id="t-contact" type="email"></label>
-          <label>Lien d’inscription<input id="t-registration" type="url"></label><label>Affiche (URL)<input id="t-poster" type="url"></label>
+          <label>Affiche (URL)<input id="t-poster" type="url"></label>
         </div></fieldset>
         <fieldset class="wizard-page" data-step="1" hidden><legend>Format et cadence</legend><div class="wizard-grid">
           <div><strong>Format</strong><div id="t-formats"></div></div><label>Cadence<select id="t-cadence"><option value="standard">Classique</option><option value="rapid">Rapide</option><option value="blitz">Blitz</option></select></label>
@@ -98,12 +98,15 @@
             <p class="muted">Seul le nom est obligatoire.</p>
             <label for="np-name">Nom *</label>
             <input id="np-name">
+            <label for="np-fide-id">ID FIDE</label>
+            <input id="np-fide-id" type="number" min="1" step="1">
             <label for="np-club">Club</label>
             <input id="np-club">
             <label for="np-elo">Elo standard</label>
             <input id="np-elo" type="number" min="0" step="1">
             <p id="np-error" class="error"></p>
-            <p><button type="button" id="np-add">Ajouter à l'annuaire</button></p>
+            <div id="np-duplicates" class="duplicate-candidates" aria-live="polite"></div>
+            <p><button type="button" id="np-add">Ajouter à l'annuaire</button> <button type="button" id="np-force-add" hidden>Créer quand même</button></p>
           </details>
         </fieldset>
         <fieldset class="wizard-page" data-step="4" hidden><legend>Vérification</legend><div id="t-review"></div></fieldset>
@@ -121,11 +124,13 @@
       <p id="players-loading">Chargement…</p><p id="players-directory-error" class="error"></p><p id="players-count" class="muted"></p><table class="public-table"><thead><tr><th>Joueur</th><th>Titre</th><th>ID FIDE</th><th>Fédération</th><th>Club</th><th>Standard</th><th>Rapide</th><th>Blitz</th><th>Activité</th></tr></thead><tbody id="players-directory-body"></tbody></table><div class="pagination"><button id="players-prev">Précédent</button><button id="players-next">Suivant</button></div>
     </section>
 
-    <section id="view-player" hidden><p><a href="#/joueurs">← Annuaire des joueurs</a></p><h1 id="player-profile-name"></h1><p id="player-profile-error" class="error"></p><div class="fide-fields"><h2>Données FIDE synchronisées</h2><p id="player-fide-fields"></p><p id="player-ratings"></p><p id="player-activity"></p></div><div class="local-fields"><h2>Données locales</h2><p id="player-local-fields"></p></div><h2>Tournois publics joués</h2><ul id="player-tournaments"></ul><fieldset id="player-local-edit" hidden><legend>Modifier les champs locaux</legend><label>Club<input id="player-club-edit"></label><button id="player-local-save">Enregistrer</button><p id="player-local-feedback"></p></fieldset></section>
+    <section id="view-player" hidden><p><a href="#/joueurs">← Annuaire des joueurs</a></p><h1 id="player-profile-name"></h1><p id="player-profile-error" class="error"></p><div class="fide-fields"><h2>Données FIDE synchronisées</h2><p id="player-fide-fields"></p><p id="player-ratings"></p><p id="player-activity"></p></div><div class="local-fields"><h2>Données locales</h2><p id="player-local-fields"></p></div><h2>Tournois publics joués</h2><ul id="player-tournaments"></ul><fieldset id="player-local-edit" hidden><legend>Modifier les champs locaux</legend><label>Club<input id="player-club-edit"></label><button id="player-local-save">Enregistrer</button><p id="player-local-feedback"></p></fieldset><button id="player-merge-open" type="button" hidden>Fusionner avec un autre joueur</button></section>
+    <dialog id="player-merge-dialog" aria-labelledby="player-merge-title"><form method="dialog"><h2 id="player-merge-title">Fusionner avec un autre joueur</h2><p id="player-merge-primary-preview"></p><label>Rechercher le second joueur<input id="player-merge-search" type="search"></label><div id="player-merge-candidates"></div><label>Raison obligatoire<textarea id="player-merge-reason" required></textarea></label><label>Confirmez le nom de la fiche principale<input id="player-merge-confirm" required></label><p id="player-merge-feedback" class="error"></p><button value="cancel">Annuler</button><button id="player-merge-submit" type="button" class="danger">Confirmer la fusion</button></form></dialog>
 
     <section id="view-clubs" hidden><p><a href="#/">← Tournois</a></p><h1>Clubs d’échecs</h1><div id="clubs-list" class="clubs-grid"></div></section>
     <section id="view-club" hidden><p><a href="#/clubs">← Clubs</a></p><h1 id="club-name"></h1><p id="club-description"></p><p id="club-contact"></p><h2>Tournois publics</h2><ul id="club-tournaments"></ul></section>
     <section id="view-user-administration" hidden><p><a href="#/">← Accueil</a></p><h1>Administration des utilisateurs</h1>
+      <p><a class="button-link" href="#/joueurs">Fusionner avec un autre joueur</a></p>
       <form id="admin-invite-form"><label>E-mail<input id="admin-email" type="email" required></label><label>Club<select id="admin-club" required></select></label><button id="admin-invite-submit" class="primary">Inviter</button><p id="admin-feedback" aria-live="polite"></p></form>
       <div class="admin-grid"><section><h2>Invitations</h2><ul id="admin-invitations"></ul></section><section><h2>Administrateurs</h2><ul id="club-admins"></ul></section></div>
     </section>
@@ -147,13 +152,13 @@
         <button role="tab" data-tab="overview">Aperçu</button><button role="tab" data-tab="players">Joueurs</button><button role="tab" data-tab="pairings">Appariements</button><button role="tab" data-tab="standings">Classement</button><button role="tab" data-tab="information">Informations</button>
       </nav>
       <section class="tournament-tab-panel" data-panel="overview"><div class="overview-grid">
-        <article class="overview-card"><h3>Présentation</h3><p id="overview-description"></p><p><a id="overview-registration" class="button-link" target="_blank" rel="noopener" hidden>S’inscrire</a> <a id="overview-contact" hidden></a></p></article>
+        <article class="overview-card"><h3>Présentation</h3><p id="overview-description"></p><p><a id="overview-contact" hidden></a></p></article>
         <article class="overview-card"><h3>Progression</h3><progress id="overview-progress-bar"></progress><p id="overview-progress-label"></p><dl><dt>Prochaine ronde</dt><dd id="overview-next-round"></dd></dl></article>
         <article class="overview-card"><h3>Informations pratiques</h3><p id="overview-practical"></p></article>
       </div></section>
       <section class="tournament-tab-panel" data-panel="players" hidden><table class="public-table"><thead><tr><th>Rang initial</th><th>Joueur</th><th>Titre</th><th>ID FIDE</th><th>Fédération</th><th>Club</th><th>Elo</th></tr></thead><tbody id="tournament-player-rows"></tbody></table></section>
       <section class="tournament-tab-panel" data-panel="pairings" hidden><div id="rounds-tabs" class="round-tabs"></div><p><label><input id="unplayed-only" type="checkbox"> Afficher seulement les parties sans résultat</label></p><p id="rounds-progress" class="muted"></p><div id="rounds-board"></div><p id="rounds-next"></p><p id="rounds-feedback"></p></section>
-      <section class="tournament-tab-panel" data-panel="standings" hidden><div id="standing-round-links" class="standing-round-links"></div><p id="standings-tiebreaks" class="muted"></p><table id="tournament-standings-table" class="public-table"></table></section>
+      <section class="tournament-tab-panel" data-panel="standings" hidden><div id="standing-round-links" class="standing-round-links"></div><p id="standings-tiebreaks" class="muted"></p><div class="table-scroll standings-scroll" tabindex="0" aria-label="Classement, défilement horizontal"><table id="tournament-standings-table" class="standings-table"></table></div></section>
       <section class="tournament-tab-panel" data-panel="information" hidden><div class="overview-card"><dl class="overview-grid"><div><dt>Adresse</dt><dd id="info-address"></dd></div><div><dt>Organisateur</dt><dd id="info-organizer"></dd></div><div><dt>Contact public</dt><dd id="info-contact"></dd></div></dl></div></section>
       <aside id="organizer-panel" class="organizer-panel" hidden><h2>Gestion du tournoi</h2><p id="tournament-reopened-banner" class="success" hidden>Ce tournoi a été rouvert : les résultats de la dernière ronde peuvent être corrigés.</p><div id="tournament-actions"></div><p id="tournament-actions-feedback"></p><a id="tournament-edit-link" href="#">Modifier ce tournoi</a></aside>
       <dialog id="reopen-tournament-dialog" aria-labelledby="reopen-tournament-title"><form method="dialog"><h2 id="reopen-tournament-title">Réouvrir le tournoi</h2><p>Le tournoi repassera en cours. Si la dernière ronde est rouverte, ses résultats seront modifiables, puis la ronde devra être validée et le tournoi clôturé à nouveau.</p><label>Raison <textarea id="reopen-tournament-reason" required></textarea></label><label><input id="reopen-last-round" type="checkbox" checked> Rouvrir également la dernière ronde</label><p><button value="cancel">Annuler</button><button id="confirm-reopen-tournament" value="confirm" class="primary">Confirmer la réouverture</button></p><p id="reopen-tournament-feedback"></p></form></dialog>
