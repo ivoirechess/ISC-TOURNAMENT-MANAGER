@@ -13,7 +13,8 @@ test("l'assistant expose les sept étapes dans l'ordre", () => {
 });
 
 test("tous les champs demandés sont câblés", () => {
-  for (const id of ["t-name","t-description","t-starts","t-city","t-venue","t-address","t-organizer","t-contact","t-registration","t-poster","t-formats","t-cadence","t-time-control","t-ranking","t-fide-rated","t-max-players","t-rounds","tiebreak-selects","player-list"]) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ["t-name","t-description","t-starts","t-city","t-venue","t-address","t-organizer","t-contact","t-poster","t-formats","t-cadence","t-time-control","t-ranking","t-fide-rated","t-max-players","t-rounds","tiebreak-selects","player-list"]) assert.match(html, new RegExp(`id="${id}"`));
+  assert.doesNotMatch(html, /id="t-registration"/);
 });
 
 test("le navigateur effectue une seule RPC et protège le double clic", () => {

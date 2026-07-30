@@ -4,49 +4,14 @@
 import { getTournamentResults } from "../data.js";
 import { computeStandings, TIEBREAK_LABELS } from "../tiebreaks.js";
 import { stateLabel } from "../tournament-lifecycle.js";
+import { renderStandingsTable } from "./standings-table.js";
 
 function el(id) {
   return document.getElementById(id);
 }
 
-// Whole numbers stay plain, halves keep one decimal: 2 and 2.5, not 2.0.
-function formatValue(value) {
-  if (value === null || value === undefined) return "—";
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
 function renderTable(rows, selectedTiebreaks) {
-  const table = el("standings-table");
-  table.innerHTML = "";
-
-  const head = document.createElement("thead");
-  const headRow = document.createElement("tr");
-  // Points always leads, then the chosen tie-breaks in the chosen order.
-  for (const heading of ["#", "Joueur", "Points", ...selectedTiebreaks.map((k) => TIEBREAK_LABELS[k] ?? k)]) {
-    const cell = document.createElement("th");
-    cell.textContent = heading;
-    headRow.append(cell);
-  }
-  head.append(headRow);
-  table.append(head);
-
-  const body = document.createElement("tbody");
-  for (const row of rows) {
-    const line = document.createElement("tr");
-    const cells = [
-      String(row.rank),
-      row.name,
-      formatValue(row.points),
-      ...selectedTiebreaks.map((key) => formatValue(row[key])),
-    ];
-    for (const value of cells) {
-      const cell = document.createElement("td");
-      cell.textContent = value;
-      line.append(cell);
-    }
-    body.append(line);
-  }
-  table.append(body);
+  renderStandingsTable(el("standings-table"), rows, selectedTiebreaks);
 }
 
 /** Called by the router; `id` is the tournament id from the hash. */

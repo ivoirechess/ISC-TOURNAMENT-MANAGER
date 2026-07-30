@@ -4,7 +4,7 @@
 // The admin-only guard here is interface comfort: RLS rejects the writes
 // of anyone who is not an admin, whatever this screen displays.
 
-import { listPlayers, createPlayer, createTournament } from "../data.js";
+import { listPlayers, createPlayer, createTournament, findPlayerDuplicates } from "../data.js";
 import {
   FORMATS,
   validateTournamentDraft,
@@ -236,22 +236,35 @@ async function onAddPlayer() {
   const name = el("np-name").value.trim();
   const club = el("np-club").value.trim();
   const elo = Number.parseInt(el("np-elo").value, 10);
+  const fideId = Number.parseInt(el("np-fide-id").value, 10);
+  try {
+    const duplicates=await findPlayerDuplicates({name,fideId:Number.isInteger(fideId)?fideId:null,club,ratingStd:Number.isInteger(elo)?elo:null});
+    const exact=duplicates.find(player=>Number.isInteger(fideId)&&player.fide_id===fideId);
+    if(exact){renderDuplicateCandidates(duplicates,true);errorBox.textContent="Cet ID FIDE existe déjà. Utilisez la fiche existante.";return}
+    if(duplicates.length){renderDuplicateCandidates(duplicates,false);errorBox.textContent="Des joueurs similaires existent déjà. Vérifiez avant de créer une nouvelle fiche.";el("np-force-add").hidden=false;return}
+    await insertManualPlayer();
+  } catch (err) { errorBox.textContent = err.message; }
+}
+
+function renderDuplicateCandidates(candidates,exact){const box=el("np-duplicates");box.replaceChildren();for(const player of candidates){const card=document.createElement("article");const ratings=[player.rating_std,player.rating_rapid,player.rating_blitz].map(value=>value||"—").join(" / ");const text=document.createElement("p");text.textContent=`${player.name} · ID FIDE ${player.fide_id||"—"} · ${player.fide_title||"sans titre"} · ${player.club||"sans club"} · ${ratings}`;const use=document.createElement("button");use.type="button";use.textContent="Utiliser ce joueur";use.onclick=()=>{selected.add(player.id);el("np-duplicates").replaceChildren();el("np-error").textContent="";el("np-force-add").hidden=true;renderPlayerList();refreshSelectionCount()};card.append(text,use);box.append(card)}el("np-force-add").hidden=exact}
+
+async function insertManualPlayer() {
+  const name=el("np-name").value.trim(),club=el("np-club").value.trim(),elo=Number.parseInt(el("np-elo").value,10),fideId=Number.parseInt(el("np-fide-id").value,10);
   try {
     const player = await createPlayer({
-      name,
-      club: club || undefined,
+      name, club: club || undefined, fide_id:Number.isInteger(fideId)?fideId:undefined,
       rating_std: Number.isInteger(elo) ? elo : undefined,
     });
     // The new player joins the directory and is selected right away.
     selected.add(player.id);
     el("np-name").value = "";
+    el("np-fide-id").value = "";
     el("np-club").value = "";
     el("np-elo").value = "";
     await reloadPlayers();
     refreshValidation();
-  } catch (err) {
-    errorBox.textContent = err.message;
-  }
+    el("np-duplicates").replaceChildren();el("np-force-add").hidden=true;
+  } catch (err) { el("np-error").textContent = err.message; }
 }
 
 async function onSubmit(event) {
@@ -272,7 +285,6 @@ async function onSubmit(event) {
       venueAddress: el("t-address").value.trim() || null,
       organizerName: el("t-organizer").value.trim() || null,
       publicContactEmail: el("t-contact").value.trim() || null,
-      registrationUrl: el("t-registration").value.trim() || null,
       posterUrl: el("t-poster").value.trim() || null,
       format: draft.format,
       cadence: el("t-cadence").value,
@@ -320,6 +332,7 @@ export function initTournamentForm() {
   el("t-rounds").addEventListener("input", () => { el("t-errors").textContent = ""; });
   el("player-search").addEventListener("input", renderPlayerList);
   el("np-add").addEventListener("click", onAddPlayer);
+  el("np-force-add").addEventListener("click", insertManualPlayer);
   el("tiebreak-add").addEventListener("click", addTiebreak);
   el("tiebreak-remove").addEventListener("click", removeTiebreak);
   el("wizard-prev").addEventListener("click", () => { if (!submitting && currentStep > 0) { currentStep -= 1; renderWizard(); } });

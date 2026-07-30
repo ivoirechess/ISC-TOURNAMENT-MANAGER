@@ -2,6 +2,7 @@ import { FORMATS } from "../tournament-validation.js";
 import { stateLabel } from "../tournament-lifecycle.js";
 import { computeStandingsAfterRound, TIEBREAK_LABELS } from "../tiebreaks.js";
 import { initialRanking, tournamentProgress, tournamentTabUrl } from "../tournament-page.js";
+import { renderStandingsTable } from "./standings-table.js";
 
 function el(id) { return document.getElementById(id); }
 function text(id, value) { el(id).textContent = value || "—"; }
@@ -35,7 +36,6 @@ function renderOverview(payload) {
   text("overview-progress-label", `${progress.validated} ronde(s) validée(s) sur ${progress.planned}`);
   text("overview-next-round", progress.nextRound ? `Ronde ${progress.nextRound}` : "Aucune ronde à venir");
   text("overview-practical", [dateTime(tournament.starts_at, tournament.timezone), tournament.venue_name, tournament.venue_address, tournament.city].filter(Boolean).join(" · "));
-  const registration = el("overview-registration"); registration.hidden = !tournament.registration_url; registration.href = tournament.registration_url || "#";
   const contact = el("overview-contact"); contact.hidden = !tournament.public_contact_email; contact.href = tournament.public_contact_email ? `mailto:${tournament.public_contact_email}` : "#"; contact.textContent = tournament.public_contact_email || "";
 }
 
@@ -46,10 +46,7 @@ function renderStandings(payload) {
   if (!validated.length) { nav.textContent = "Le classement sera publié après la validation de la première ronde."; return; }
   const render = (number) => {
     const rows = computeStandingsAfterRound(payload.state, number, payload.tournament.tiebreaks);
-    table.innerHTML = "<thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead>";
-    const body = document.createElement("tbody");
-    for (const item of rows) { const tr = document.createElement("tr"); for (const value of [item.rank, item.name, item.points]) { const td = document.createElement("td"); td.textContent = String(value); tr.append(td); } body.append(tr); }
-    table.append(body);
+    renderStandingsTable(table, rows, payload.tournament.tiebreaks ?? []);
   };
   validated.forEach((round) => {
     const button = document.createElement("button"); button.type = "button";

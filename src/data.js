@@ -10,6 +10,7 @@ import { generateSchedule } from "./roundrobin.js";
 import { isRoundRobin } from "./tournament-validation.js";
 import { validateTiebreakSelection } from "./tiebreaks.js";
 import { validateTournamentName, GAME_RESULTS } from "./tournament-edit.js";
+import { normalizedPlayerName } from "./player-merge.js";
 
 // Version pinned exactly: an unpinned tag would let the CDN swap the code
 // that handles organizer passwords without any visible change here.
@@ -166,7 +167,10 @@ export async function listPlayersPage({page=1,pageSize=25,query="",title="",acti
   const allowedSort=["rating_std","rating_rapid","rating_blitz","name"];
   let request=client.from("players").select("id,name,fide_id,federation,fide_title,other_titles,fide_active,club,club_id,rating_std,rating_rapid,rating_blitz,updated_at,clubs(name)",{count:"exact"}).is("merged_into",null);
   const term=query.trim();
-  if(term) request=/^\d+$/.test(term)?request.eq("fide_id",Number(term)):request.or(`name.ilike.%${term.replaceAll(",","")}%,club.ilike.%${term.replaceAll(",","")}%`);
+  if(term) {
+    if(/^\d+$/.test(term)) request=request.eq("fide_id",Number(term));
+    else {const safe=term.replaceAll(",","");const {data:aliases}=await client.from("player_aliases").select("player_id").ilike("alias",`%${safe}%`);const ids=(aliases??[]).map(row=>row.player_id).join(",");request=request.or(`name.ilike.%${safe}%,club.ilike.%${safe}%${ids?`,id.in.(${ids})`:""}`)}
+  }
   if(title) request=request.eq("fide_title",title);
   if(active!=="") request=request.eq("fide_active",active==="true");
   if(clubId) request=request.eq("club_id",clubId);
@@ -180,9 +184,24 @@ export async function listPlayersPage({page=1,pageSize=25,query="",title="",acti
 
 export async function getPlayerProfile(identifier) {
   const client=await getClient();
-  let request=client.from("players").select("id,name,fide_id,federation,fide_title,other_titles,fide_active,source_period,fide_synced_at,club,club_id,rating_std,rating_rapid,rating_blitz,updated_at,clubs(id,name),tournament_players(tournaments(id,slug,name,status,published_at,started_at,finished_at,cancelled_at,starts_at))").is("merged_into",null);
+  let request=client.from("players").select("id,name,fide_id,federation,fide_title,other_titles,fide_active,source_period,fide_synced_at,club,club_id,local_notes,rating_std,rating_rapid,rating_blitz,updated_at,merged_into,clubs(id,name),player_aliases(alias),tournament_players(tournaments(id,slug,name,status,published_at,started_at,finished_at,cancelled_at,starts_at))");
   request=/^\d+$/.test(identifier)?request.eq("fide_id",Number(identifier)):request.eq("id",identifier);
-  const {data,error}=await request.maybeSingle(); if(error) throw new Error("Impossible de charger ce joueur."); return data??null;
+  const {data,error}=await request.maybeSingle(); if(error) throw new Error("Impossible de charger ce joueur.");
+  if(data?.merged_into){const target=await getPlayerProfile(data.merged_into);return target?{...target,redirectedFrom:data.id}:null} return data??null;
+}
+
+export async function findPlayerDuplicates({name,fideId=null,club=null,ratingStd=null}) {
+  const client=await getClient();const {data,error}=await client.rpc("find_player_duplicates",{search_name:name,search_fide_id:fideId,search_club:club,search_rating:ratingStd});
+  if(error) throw new Error("La recherche de doublons a échoué.");return data??[];
+}
+
+export async function previewPlayerMerge(source,target,choices={}) {
+  const {previewPlayerMerge:preview}=await import("./player-merge.js");return preview(source,target,choices);
+}
+
+export async function mergePlayers({sourceId,targetId,reason}) {
+  const client=await getClient();const {data,error}=await client.rpc("merge_players",{source_id:sourceId,target_id:targetId,reason});
+  if(error) throw new Error(error.message||"La fusion a échoué.");return data;
 }
 
 /** Local fields only: never writes synchronized FIDE identity/rating fields. */
@@ -201,7 +220,7 @@ export async function createPlayer(fields) {
   if (name === "") {
     throw new Error("Le nom du joueur est obligatoire.");
   }
-  const row = { name };
+  const row = { name, normalized_name: normalizedPlayerName(name) };
   if (fields.club) row.club = fields.club.trim();
   if (Number.isInteger(fields.fide_id)) row.fide_id = fields.fide_id;
   if (Number.isInteger(fields.rating_std)) row.rating_std = fields.rating_std;
@@ -226,7 +245,7 @@ export async function createPlayer(fields) {
  */
 export async function createTournament({
   name, description, startsAt, city, venueName, venueAddress, organizerName,
-  publicContactEmail, registrationUrl, posterUrl, format, cadence,
+  publicContactEmail, posterUrl, format, cadence,
   timeControlText, rankingType, fideRated, maxPlayers, roundsPlanned,
   playerIds, tiebreaks, publishNow = false, requestId = crypto.randomUUID(),
 }) {
@@ -242,7 +261,7 @@ export async function createTournament({
       name: name.trim(), description, starts_at: startsAt, city,
       venue_name: venueName, venue_address: venueAddress,
       organizer_name: organizerName, public_contact_email: publicContactEmail,
-      registration_url: registrationUrl, poster_url: posterUrl, format,
+      poster_url: posterUrl, format,
       rating_type: cadence, time_control_text: timeControlText,
       ranking_type: rankingType, fide_rated: fideRated,
       max_players: maxPlayers, rounds_planned: schedule?.length ?? roundsPlanned,
@@ -629,7 +648,7 @@ export async function getTournamentResults(id) {
       "id, name, slug, format, rounds_planned, status, created_at, created_by, club_id, tiebreaks, " +
       "published_at, started_at, finished_at, cancelled_at, cancellation_reason, " +
       "starts_at, ends_at, timezone, venue_name, venue_address, city, organizer_name, description, " +
-      "public_contact_email, registration_url, poster_url, rating_type, updated_at, last_activity_at, " +
+      "public_contact_email, poster_url, rating_type, updated_at, last_activity_at, " +
       "tournament_players(withdrawn, players(id, name, title, fide_id, federation, club, rating_std, rating_rapid, rating_blitz)), " +
       "rounds(id, number, released_at, validated_at, validated_by, pairings(id, board, white_player_id, black_player_id, result))"
     )
