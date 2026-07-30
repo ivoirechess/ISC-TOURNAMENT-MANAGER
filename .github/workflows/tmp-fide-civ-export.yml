@@ -21,11 +21,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Télécharger la liste FIDE et générer les exports CIV
+      - name: Télécharger la liste officielle FIDE
         run: |
           mkdir -p output
+          curl --fail --location --retry 4 --retry-delay 10 --connect-timeout 30 --max-time 600 \
+            --output output/players_list_xml.zip \
+            http://ratings.fide.com/download/players_list_xml.zip \
+          test -s output/players_list_xml.zip
+          unzip -t output/players_list_xml.zip
+
+      - name: Générer les exports CIV
+        run: |
           python scripts/fide_civ.py \
-            --download \
+            --input output/players_list_xml.zip \
             --period 2026-07 \
             --output output/fide-civ-2026-07.json \
             --sql-output output/fide-civ-2026-07.sql \
@@ -66,6 +74,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fide-civ-export-2026-07
-          path: output/
+          path: |
+            output/fide-civ-2026-07.json
+            output/fide-civ-2026-07.sql
+            output/summary.json
           if-no-files-found: error
           retention-days: 7
