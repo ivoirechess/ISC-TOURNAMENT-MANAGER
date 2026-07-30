@@ -119,17 +119,31 @@ select pg_temp.check_equal(
 -- --------------------------------------------------------------------------
 -- Soft deletion, and who sees what afterwards
 -- --------------------------------------------------------------------------
+-- Since 20260810120000_tournament_recovery, soft_delete_tournament takes a
+-- reason and a name confirmation. The one-argument endpoint still exists but
+-- is revoked from everyone, and a positional one-argument call is now
+-- ambiguous between the two signatures — so every call below names the three.
 reset role; reset test.uid;
 set role authenticated;
 set test.uid = '22222222-2222-2222-2222-222222222222';
 select pg_temp.check_refused(
   'un autre admin ne peut pas supprimer',
-  $$select public.soft_delete_tournament('cccccccc-0000-0000-0000-000000000001')$$);
+  $$select public.soft_delete_tournament(
+      'cccccccc-0000-0000-0000-000000000001', null, 'En cours')$$);
 
 reset role; reset test.uid;
 set role authenticated;
 set test.uid = '11111111-1111-1111-1111-111111111111';
-select public.soft_delete_tournament('cccccccc-0000-0000-0000-000000000001');
+-- An organizer no longer deletes a running tournament outright: it must be
+-- cancelled first, so the players who signed up see why it disappeared.
+select pg_temp.check_refused(
+  'un tournoi en cours se supprime seulement apres annulation',
+  $$select public.soft_delete_tournament(
+      'cccccccc-0000-0000-0000-000000000001', null, 'En cours')$$);
+select public.cancel_tournament(
+  'cccccccc-0000-0000-0000-000000000001', 'Salle indisponible');
+select public.soft_delete_tournament(
+  'cccccccc-0000-0000-0000-000000000001', null, 'En cours');
 
 select pg_temp.check_equal('le proprietaire ne voit plus son tournoi supprime',
   (select count(*) from public.tournaments where id = 'cccccccc-0000-0000-0000-000000000001'), 0);
@@ -182,7 +196,13 @@ select pg_temp.check_equal('un tournoi vivant ne se purge pas directement',
 
 set role authenticated;
 set test.uid = '33333333-3333-3333-3333-333333333333';
-select public.soft_delete_tournament('cccccccc-0000-0000-0000-000000000001');
+-- A super_admin still has to retype the exact name, and give a reason for a
+-- tournament that has already been played.
+select pg_temp.check_refused('le super_admin retape le nom exact',
+  $$select public.soft_delete_tournament(
+      'cccccccc-0000-0000-0000-000000000001', 'Recette', 'Nom approximatif')$$);
+select public.soft_delete_tournament(
+  'cccccccc-0000-0000-0000-000000000001', 'Recette', 'En cours');
 delete from public.tournaments where id = 'cccccccc-0000-0000-0000-000000000001';
 reset role; reset test.uid;
 select pg_temp.check_equal('le super_admin purge depuis la corbeille',
@@ -496,9 +516,13 @@ select pg_temp.check_equal('cercle publie facultativement et nombre de rondes re
   (select count(*) from public.tournaments where name='Cercle atomique' and published_at is not null and rounds_planned=1),1);
 
 -- Player merge is super-admin only and repoints references transactionally.
+-- The realistic duplicate: a locally created sheet, with no FIDE identity,
+-- absorbed by the official one. Since 20260812120000_safe_player_merge, a
+-- source that carries its own distinct FIDE id is refused outright.
 insert into public.players(id,name,fide_id) values
- ('aaaaaaaa-0000-0000-0000-000000000010','Doublon source',900001),
- ('aaaaaaaa-0000-0000-0000-000000000011','Joueur cible',900002);
+ ('aaaaaaaa-0000-0000-0000-000000000010','Doublon source',null),
+ ('aaaaaaaa-0000-0000-0000-000000000011','Joueur cible',900002),
+ ('aaaaaaaa-0000-0000-0000-000000000012','Autre identite FIDE',900001);
 insert into public.tournament_players(tournament_id,player_id) values
  ('cccccccc-0000-0000-0000-0000000000c5','aaaaaaaa-0000-0000-0000-000000000010');
 insert into public.rounds(id,tournament_id,number,released_at) values
@@ -513,7 +537,11 @@ update public.players set club='Club local' where id='aaaaaaaa-0000-0000-0000-00
 select pg_temp.check_refused('admin non super ne fusionne pas',
  $$select public.merge_players('aaaaaaaa-0000-0000-0000-000000000010','aaaaaaaa-0000-0000-0000-000000000011','doublon')$$);
 reset role;reset test.uid;set role authenticated;set test.uid='33333333-3333-3333-3333-333333333333';
-select public.merge_players('aaaaaaaa-0000-0000-0000-000000000010','aaaaaaaa-0000-0000-0000-000000000011','doublon FIDE');
+select pg_temp.check_refused('deux identites FIDE distinctes ne fusionnent pas',
+ $$select public.merge_players('aaaaaaaa-0000-0000-0000-000000000012','aaaaaaaa-0000-0000-0000-000000000011','doublon FIDE')$$);
+select pg_temp.check_refused('la fiche FIDE doit rester la fiche principale',
+ $$select public.merge_players('aaaaaaaa-0000-0000-0000-000000000011','aaaaaaaa-0000-0000-0000-000000000010','cible sans FIDE')$$);
+select public.merge_players('aaaaaaaa-0000-0000-0000-000000000010','aaaaaaaa-0000-0000-0000-000000000011','doublon local');
 reset role;reset test.uid;
 select pg_temp.check_equal('fusion marque la source',(select count(*) from public.players where id='aaaaaaaa-0000-0000-0000-000000000010' and merged_into='aaaaaaaa-0000-0000-0000-000000000011'),1);
 select pg_temp.check_equal('fusion deplace les inscriptions',(select count(*) from public.tournament_players where tournament_id='cccccccc-0000-0000-0000-0000000000c5' and player_id='aaaaaaaa-0000-0000-0000-000000000011'),1);
