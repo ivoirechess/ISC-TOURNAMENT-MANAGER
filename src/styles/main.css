@@ -643,3 +643,11 @@ button.danger:hover { background: var(--danger); }
 .home-create-action { background: var(--gold); border-color: var(--gold); color: var(--ink); }
 .round-tab.active, button.entry.active { background: var(--accent-dark); border-color: var(--accent-dark); }
 .status-ongoing, .success, .admin-note { color: var(--accent-dark); }
+/* Canonical club selectors */
+.section-heading,.admin-club-row{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}.section-heading{justify-content:space-between}
+.club-combobox{position:relative;width:min(100%,34rem)}.club-combobox>input{width:100%;min-width:0}
+.club-options{position:absolute;z-index:20;top:calc(100% + .25rem);left:0;right:0;max-height:18rem;overflow:auto;background:#fff;border:1px solid #9ca3af;border-radius:.4rem;box-shadow:0 .5rem 1.25rem #0002;padding:.25rem}
+.club-option{display:flex;width:100%;align-items:flex-start;justify-content:space-between;gap:1rem;text-align:left;border:0;background:transparent;padding:.65rem}.club-option:hover,.club-option[aria-selected="true"]{background:#eef5ff}.club-option small{color:#59636e}.club-option.create{font-weight:700;color:var(--primary,#174b8a)}
+.club-near-warning{margin:.35rem 0 0;font-size:.9rem}.admin-club-row{align-items:flex-start}.admin-club-row .club-combobox{flex:1 1 28rem;max-width:36rem}
+.club-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.club-form-grid label{display:grid;gap:.3rem}.club-form-grid .wide{grid-column:1/-1}#club-dialog{width:min(44rem,calc(100vw - 2rem))}#club-dialog input,#club-dialog textarea{width:100%;box-sizing:border-box}
+@media(max-width:600px){.club-form-grid{grid-template-columns:1fr}.club-form-grid .wide{grid-column:auto}.admin-club-row>*{width:100%}.club-options{max-height:14rem}}

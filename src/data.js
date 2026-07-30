@@ -138,6 +138,37 @@ export async function listClubs() {
   if(error) throw new Error("Impossible de charger les clubs."); return data??[];
 }
 
+export async function listClubsForAdministration({activeOnly=false}={}) {
+  const client=await getClient();
+  let request=client.from("clubs").select("id,name,slug,logo_url,city,description,public_email,public_phone,website_url,active").order("name");
+  if(activeOnly)request=request.eq("active",true);
+  const {data,error}=await request;
+  if(error)throw new Error("Impossible de charger les clubs.");
+  return data??[];
+}
+
+export async function resolveOrCreateClub({name,city=null}) {
+  const client=await getClient();const {data,error}=await client.rpc("resolve_or_create_club",{p_name:name,p_city:city});
+  if(error)throw new Error(error.message||"La création du club a échoué.");return Array.isArray(data)?data[0]:data;
+}
+
+export async function createClub(fields) {
+  const name=fields.name?.trim();if(!name)throw new Error("Le nom du club est obligatoire.");
+  const client=await getClient();const {data,error}=await client.from("clubs").insert({
+    name,slug:slugifyClubName(name),city:fields.city?.trim()||null,description:fields.description?.trim()||null,
+    public_email:fields.publicEmail?.trim()||null,public_phone:fields.publicPhone?.trim()||null,
+    website_url:fields.websiteUrl?.trim()||null,logo_url:fields.logoUrl?.trim()||null,active:fields.active!==false,
+  }).select("id,name,slug,city,active").single();
+  if(error)throw new Error(error.message||"La création complète du club a échoué.");return data;
+}
+
+export async function updateClub(id,fields) {
+  const client=await getClient();const {data,error}=await client.from("clubs").update(fields).eq("id",id).select().single();
+  if(error)throw new Error("La modification du club a échoué.");return data;
+}
+
+function slugifyClubName(value){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}
+
 export async function getClub(slug) {
   const client=await getClient();const {data,error}=await client.from("clubs")
     .select("id,name,slug,logo_url,city,description,public_email,public_phone,website_url,active,tournaments(id,name,slug,status,published_at,starts_at,finished_at)")
@@ -150,7 +181,7 @@ export async function getClubAdministration() {
   const [{data:invitations,error:invitationError},{data:memberships,error:membershipError},{data:clubs,error:clubError}]=await Promise.all([
     client.from("admin_invitations").select("id,email,status,club_id,created_at,expires_at,last_sent_at,sent_count,last_error,clubs(name)").order("created_at",{ascending:false}),
     client.from("club_memberships").select("club_id,user_id,role,active,created_at,profiles(display_name),clubs(name)").order("created_at",{ascending:false}),
-    client.from("clubs").select("id,name").order("name"),
+    client.from("clubs").select("id,name,city,active").order("name"),
   ]);
   if(invitationError||membershipError||clubError) throw new Error("Administration des clubs inaccessible.");
   return {invitations:invitations??[],memberships:memberships??[],clubs:clubs??[]};
@@ -206,8 +237,19 @@ export async function mergePlayers({sourceId,targetId,reason}) {
 
 /** Local fields only: never writes synchronized FIDE identity/rating fields. */
 export async function updatePlayerLocal(id,{clubId=null,club=null,localNotes=null}) {
-  const client=await getClient(); const {data,error}=await client.from("players").update({club_id:clubId||null,club:club?.trim()||null,local_notes:localNotes?.trim()||null}).eq("id",id).select("id,club,club_id");
+  const client=await getClient();let canonical=null;
+  if(clubId){const {data,error}=await client.from("clubs").select("id,name").eq("id",clubId).eq("active",true).single();if(error)throw new Error("Club actif introuvable.");canonical=data}
+  const {data,error}=await client.from("players").update({club_id:canonical?.id||null,club:canonical?.name||null,local_notes:localNotes?.trim()||null}).eq("id",id).select("id,club,club_id");
   if(error||!data?.length) throw new Error("Modification locale refusee."); return data[0];
+}
+
+export async function createPlayerWithClub(fields) {
+  const name=(fields.name??"").trim();if(!name)throw new Error("Le nom du joueur est obligatoire.");
+  const client=await getClient();const {data,error}=await client.rpc("create_player_with_club",{
+    p_name:name,p_club_id:fields.clubId||null,p_club_name:fields.clubName?.trim()||null,p_club_city:fields.clubCity?.trim()||null,
+    p_fide_id:Number.isInteger(fields.fide_id)?fields.fide_id:null,p_rating_std:Number.isInteger(fields.rating_std)?fields.rating_std:null,
+  });
+  if(error)throw new Error(error.message||"L'ajout transactionnel du joueur a échoué.");return data;
 }
 
 /**

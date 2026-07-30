@@ -4,7 +4,8 @@
 // The admin-only guard here is interface comfort: RLS rejects the writes
 // of anyone who is not an admin, whatever this screen displays.
 
-import { listPlayers, createPlayer, createTournament, findPlayerDuplicates } from "../data.js";
+import { listPlayers, listClubs, createPlayerWithClub, createTournament, findPlayerDuplicates } from "../data.js";
+import {createClubCombobox} from "./club-combobox.js";
 import {
   FORMATS,
   validateTournamentDraft,
@@ -21,6 +22,7 @@ function el(id) {
 }
 
 let players = [];
+let clubPicker = null;
 const selected = new Set();
 const STEP_LABELS = ["Informations générales", "Format et cadence", "Départages", "Joueurs", "Vérification", "Enregistrement", "Publication facultative"];
 let currentStep = 0;
@@ -251,8 +253,9 @@ function renderDuplicateCandidates(candidates,exact){const box=el("np-duplicates
 async function insertManualPlayer() {
   const name=el("np-name").value.trim(),club=el("np-club").value.trim(),elo=Number.parseInt(el("np-elo").value,10),fideId=Number.parseInt(el("np-fide-id").value,10);
   try {
-    const player = await createPlayer({
-      name, club: club || undefined, fide_id:Number.isInteger(fideId)?fideId:undefined,
+    const chosen=clubPicker?.value;
+    const player = await createPlayerWithClub({
+      name, clubId:chosen?.id||null, clubName:chosen?.id?null:(chosen?.name||club||undefined), fide_id:Number.isInteger(fideId)?fideId:undefined,
       rating_std: Number.isInteger(elo) ? elo : undefined,
     });
     // The new player joins the directory and is selected right away.
@@ -260,6 +263,7 @@ async function insertManualPlayer() {
     el("np-name").value = "";
     el("np-fide-id").value = "";
     el("np-club").value = "";
+    clubPicker?.select(null);
     el("np-elo").value = "";
     await reloadPlayers();
     refreshValidation();
@@ -351,6 +355,8 @@ export function initTournamentForm() {
 
 /** Called by the router each time the view is shown. */
 export async function openTournamentForm() {
+  const clubs=await listClubs().catch(()=>[]);
+  if(!clubPicker)clubPicker=createClubCombobox({root:el("np-club-combobox"),input:el("np-club"),list:el("np-club-options"),clubs,allowNone:true,allowCreate:true,onSelect:()=>{},onCreate:async name=>({name,active:true,pending:true})});else clubPicker.setClubs(clubs);
   await reloadPlayers();
   syncRoundsField();
   el("t-errors").textContent = "";
