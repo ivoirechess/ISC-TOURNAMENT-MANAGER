@@ -15,14 +15,22 @@ Front-end statique hébergé sur GitHub Pages + Supabase (Postgres, Auth, RLS,
 Realtime) comme back-end.
 
 ```
-index.html            point d'entrée
-src/swiss.js          moteur d'appariement — LOGIQUE PURE
-src/tiebreaks.js      départages — LOGIQUE PURE
-src/data.js           SEUL module qui parle à Supabase
-src/ui/               vues et composants
-tests/                tests unitaires et de propriété (node --test)
-scripts/fide_civ.py   import de la liste FIDE (fédération CIV)
+index.html              point d'entrée
+src/swiss.js            moteur d'appariement suisse — LOGIQUE PURE
+src/roundrobin.js       méthode du cercle — LOGIQUE PURE
+src/tiebreaks.js        départages — LOGIQUE PURE
+src/tournament-*.js     règles métier (validation, édition, cycle de vie…)
+src/round-entry.js      règles de saisie des résultats — LOGIQUE PURE
+src/data.js             SEUL module qui parle à Supabase
+src/ui/                 vues et composants
+supabase/migrations/    schéma et politiques RLS, dans l'ordre d'application
+supabase/tests/         vérifications RLS jouées sur un vrai Postgres
+tests/                  tests unitaires et de propriété (node --test)
+scripts/                outils de développement (harnais des tests RLS)
 ```
+
+Pas encore écrit, malgré ce que la feuille de route appelle de ses vœux :
+`scripts/fide_civ.py` (import de la liste FIDE, fédération CIV).
 
 ### Décisions déjà prises — ne pas les rouvrir sans discussion
 
@@ -211,11 +219,37 @@ main. La liste officielle CIV s'importe via `scripts/fide_civ.py`.
 
 ## Feuille de route
 
+Une case cochée veut dire : le code est là **et** une suite le couvre. Ce qui
+est écrit dans l'architecture ci-dessus mais absent du dépôt figure ici comme
+non fait, pas comme acquis.
+
+**Fait**
+
 - [x] Moteur suisse + départages, testés
 - [x] Moteur toutes rondes / aller-retour (méthode du cercle), testé
-- [x] Schéma Supabase + RLS
+- [x] Schéma Supabase + RLS, vérifié sur un vrai Postgres (`npm run test:rls`)
 - [x] Authentification et rôles
-- [ ] Interface tournoi : [x] création, [ ] saisie des rondes, [ ] classement
-- [ ] Annuaire des joueurs + import FIDE
+- [x] Interface tournoi : création, saisie des rondes, classement
+- [x] Cycle de vie : cinq états, transitions en RPC, publication
+- [x] Suppression douce + corbeille super-admin
+- [x] Temps réel sur la saisie (Realtime sur `pairings`)
+- [x] Intégration continue : `npm test` et `npm run test:rls` sur chaque PR
+
+**À faire**
+
+- [ ] Annuaire des joueurs — l'écran n'existe pas ; `src/data.js` sait déjà
+      lire et créer un joueur, la table porte déjà `club`, `fide_id` et les
+      trois Elo
+- [ ] Import de la liste FIDE CIV — `scripts/fide_civ.py` est cité dans
+      l'architecture mais n'a jamais été écrit
+- [ ] Import FIDE mensuel automatisé (GitHub Actions) — dépend du précédent
 - [ ] Profils et tableaux de bord (palmarès)
-- [ ] Import FIDE mensuel automatisé (GitHub Actions)
+- [ ] Clubs comme entités : aujourd'hui `players.club` est un simple texte
+      saisi à la main, sans table ni rattachement d'un tournoi à un club
+- [ ] Invitations d'administrateurs : les comptes se créent encore à la main
+      dans Supabase, il n'y a pas d'inscription publique (c'est voulu) ni de
+      parcours d'invitation (c'est le manque)
+- [ ] Exports : rien ne sort du site aujourd'hui, ni classement, ni
+      appariements, ni liste de joueurs
+- [ ] Audit de version : aucune trace de qui a modifié quoi ni quand, au-delà
+      de `updated_at` et `last_activity_at` sur les tournois

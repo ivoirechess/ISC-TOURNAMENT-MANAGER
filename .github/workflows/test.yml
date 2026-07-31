@@ -7,6 +7,14 @@ on:
     branches: [main]
 
 jobs:
+  # Deliberately one job, not two.
+  #
+  # A second job would appear under a new check name, and branch protection
+  # only blocks a merge on the checks it has been told to require. Until
+  # someone went into the settings and added that name, a broken RLS policy
+  # would keep sailing through — which is the very hole this is meant to
+  # close. Putting the steps here means the check already required covers
+  # them from the first run, with nothing to change in GitHub.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -26,3 +34,21 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # The RLS checks spin up their own throwaway cluster (see
+      # scripts/run-rls-checks.sh); they need the PostgreSQL binaries, not a
+      # running service. The runner image ships them, but an image change
+      # that dropped them would turn these checks into a silent skip — the
+      # script exits 2 rather than pretending. So they are verified here, and
+      # installed if they have gone missing.
+      - name: Ensure PostgreSQL is available
+        run: |
+          if ! ls -d /usr/lib/postgresql/*/bin >/dev/null 2>&1 \
+             && ! command -v initdb >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql
+          fi
+          ls -d /usr/lib/postgresql/*/bin 2>/dev/null || command -v initdb
+
+      - name: Run RLS checks
+        run: npm run test:rls
